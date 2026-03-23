@@ -1,7 +1,7 @@
 /**
  * FlipPhone – Sensor Data Collection App
  *
- * Data format stored per recording (ML-ready):
+ * Data format sent per recording (ML-ready):
  * {
  *   id: string,          // UUID
  *   trick: string,       // trick name
@@ -14,6 +14,9 @@
  *                  gx: number, gy: number, gz: number }  // gyroscope (rad/s)
  *   ]
  * }
+ *
+ * Server responses additionally include:
+ *   collector: string  // name associated with the API key
  */
 
 'use strict';
@@ -34,7 +37,7 @@ const TRICKS = [
   'Custom',
 ];
 
-const STORAGE_KEY = 'flipphone_dataset';
+const CONFIG_KEY = 'flipphone_config';
 
 const state = {
   selectedTrick: TRICKS[0],
@@ -45,6 +48,7 @@ const state = {
   sensorAvailable: false,
   sensorPermissionGranted: false,
   pendingRecording: null, // filled when review sheet opens
+  isAdmin: false,
 };
 
 // ──────────────────────────────────────────────
@@ -52,22 +56,22 @@ const state = {
 // ──────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
 
-const recordBtn       = $('record-btn');
-const timerDisplay    = $('timer-display');
-const statusMsg       = $('status-msg');
+const recordBtn        = $('record-btn');
+const timerDisplay     = $('timer-display');
+const statusMsg        = $('status-msg');
 const permissionBanner = $('permission-banner');
-const requestPermBtn  = $('request-permission-btn');
-const reviewOverlay   = $('review-overlay');
-const reviewTrickName = $('review-trick-name');
-const reviewDuration  = $('review-duration');
-const reviewSamples   = $('review-samples');
+const requestPermBtn   = $('request-permission-btn');
+const reviewOverlay    = $('review-overlay');
+const reviewTrickName  = $('review-trick-name');
+const reviewDuration   = $('review-duration');
+const reviewSamples    = $('review-samples');
 const reviewSampleRate = $('review-sample-rate');
-const reviewCanvas    = $('review-canvas');
-const btnSave         = $('btn-save');
-const btnDiscard      = $('btn-discard');
-const datasetList     = $('dataset-list');
-const datasetCount    = $('dataset-count');
-const toast           = $('toast');
+const reviewCanvas     = $('review-canvas');
+const btnSave          = $('btn-save');
+const btnDiscard       = $('btn-discard');
+const datasetList      = $('dataset-list');
+const datasetCount     = $('dataset-count');
+const toast            = $('toast');
 
 // Sensor value elements
 const sensorEls = {
@@ -76,33 +80,105 @@ const sensorEls = {
 };
 
 // ──────────────────────────────────────────────
-// Dataset persistence (localStorage)
+// Configuration (server URL + API key stored in localStorage)
 // ──────────────────────────────────────────────
-function loadDataset() {
+function getConfig() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    return JSON.parse(localStorage.getItem(CONFIG_KEY)) || {};
   } catch (_) {
-    return [];
+    return {};
   }
 }
 
-function saveDataset(ds) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ds));
+function setConfig(cfg) {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
 }
 
-function addRecording(rec) {
-  const ds = loadDataset();
-  ds.push(rec);
-  saveDataset(ds);
+function isConfigured() {
+  const cfg = getConfig();
+  return !!(cfg.serverUrl && cfg.apiKey);
 }
 
-function deleteRecording(id) {
-  const ds = loadDataset().filter((r) => r.id !== id);
-  saveDataset(ds);
+// ──────────────────────────────────────────────
+// Server API client
+// ──────────────────────────────────────────────
+async function apiFetch(path, options = {}) {
+  const cfg = getConfig();
+  const base = (cfg.serverUrl || '').replace(/\/$/, '');
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-API-Key': cfg.apiKey || '',
+    ...(options.headers || {}),
+  };
+  return fetch(base + path, { ...options, headers });
 }
 
-function clearDataset() {
-  saveDataset([]);
+async function apiSaveRecording(rec) {
+  const resp = await apiFetch('/api/recordings', {
+    method: 'POST',
+    body: JSON.stringify(rec),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `Server error ${resp.status}`);
+  }
+  return resp.json();
+}
+
+async function apiLoadRecordings() {
+  const resp = await apiFetch('/api/recordings');
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `Server error ${resp.status}`);
+  }
+  return resp.json();
+}
+
+async function apiDeleteRecording(id) {
+  const resp = await apiFetch(`/api/recordings/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `Server error ${resp.status}`);
+  }
+}
+
+// Admin: create a key via API
+async function apiCreateKey(name) {
+  const resp = await apiFetch('/api/keys', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `Server error ${resp.status}`);
+  }
+  return resp.json();
+}
+
+// Admin: list keys via API
+async function apiListKeys() {
+  const resp = await apiFetch('/api/keys');
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `Server error ${resp.status}`);
+  }
+  return resp.json();
+}
+
+// Admin: revoke a key via API
+async function apiRevokeKey(keyId) {
+  const resp = await apiFetch(`/api/keys/${encodeURIComponent(keyId)}`, { method: 'DELETE' });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `Server error ${resp.status}`);
+  }
+}
+
+// Build an export URL (includes api_key as query param for direct download)
+function exportUrl(format) {
+  const cfg = getConfig();
+  const base = (cfg.serverUrl || '').replace(/\/$/, '');
+  return `${base}/api/export/${format}?api_key=${encodeURIComponent(cfg.apiKey || '')}`;
 }
 
 // ──────────────────────────────────────────────
@@ -357,12 +433,27 @@ function drawChart(samples, canvas) {
 // ──────────────────────────────────────────────
 // Dataset view
 // ──────────────────────────────────────────────
-function renderDataset() {
-  const ds = loadDataset();
+async function renderDataset() {
+  datasetList.innerHTML = '<p class="dataset-empty">Loading…</p>';
+
+  let ds;
+  try {
+    ds = await apiLoadRecordings();
+  } catch (err) {
+    datasetList.innerHTML = `<p class="dataset-empty">⚠️ Could not load recordings.<br><small>${escapeHtml(err.message)}</small></p>`;
+    return;
+  }
+
   datasetCount.textContent = ds.length;
 
   if (ds.length === 0) {
+    datasetCount.textContent = 0;
     datasetList.innerHTML = '<p class="dataset-empty">No recordings yet.<br>Record a trick and save it!</p>';
+    if (state.isAdmin) {
+      const panel = $('admin-panel');
+      if (panel) panel.classList.remove('hidden');
+      renderAdminPanel();
+    }
     return;
   }
 
@@ -371,20 +462,21 @@ function renderDataset() {
   ds.forEach((r) => { trickCounts[r.trick] = (trickCounts[r.trick] || 0) + 1; });
   const pillsHtml = Object.entries(trickCounts)
     .sort((a, b) => b[1] - a[1])
-    .map(([t, n]) => `<div class="trick-stat-pill">${t}: <span>${n}</span></div>`)
+    .map(([t, n]) => `<div class="trick-stat-pill">${escapeHtml(t)}: <span>${n}</span></div>`)
     .join('');
 
   const statsHtml = `<div class="trick-stats">${pillsHtml}</div>`;
 
-  const itemsHtml = [...ds].reverse().map((r) => {
+  const itemsHtml = ds.map((r) => {
     const date = new Date(r.timestamp).toLocaleString();
+    const collector = r.collector ? ` · ${escapeHtml(r.collector)}` : '';
     return `
-      <div class="recording-item" data-id="${r.id}">
+      <div class="recording-item" data-id="${escapeHtml(r.id)}">
         <div class="trick-label">
           <div class="trick-name">${escapeHtml(r.trick)}</div>
-          <div class="trick-meta">${date} · ${(r.durationMs / 1000).toFixed(2)}s · ${r.sampleCount} samples · ${r.sampleRateHz} Hz</div>
+          <div class="trick-meta">${date} · ${(r.durationMs / 1000).toFixed(2)}s · ${r.sampleCount} samples · ${r.sampleRateHz} Hz${collector}</div>
         </div>
-        <button class="item-delete" data-id="${r.id}" aria-label="Delete recording">🗑</button>
+        <button class="item-delete" data-id="${escapeHtml(r.id)}" aria-label="Delete recording">🗑</button>
       </div>`;
   }).join('');
 
@@ -392,12 +484,81 @@ function renderDataset() {
 
   // Attach delete listeners
   datasetList.querySelectorAll('.item-delete').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       const id = e.currentTarget.dataset.id;
-      deleteRecording(id);
-      renderDataset();
-      showToast('Recording deleted.');
+      try {
+        await apiDeleteRecording(id);
+        showToast('Recording deleted.');
+        renderDataset();
+      } catch (err) {
+        showToast('Delete failed: ' + err.message);
+      }
     });
+  });
+
+  // Render admin key panel if admin
+  if (state.isAdmin) {
+    const panel = $('admin-panel');
+    if (panel) panel.classList.remove('hidden');
+    renderAdminPanel();
+  }
+}
+
+async function renderAdminPanel() {
+  const panel = $('admin-panel');
+  if (!panel) return;
+
+  let keys;
+  try {
+    keys = await apiListKeys();
+  } catch (_) {
+    return;
+  }
+
+  const rowsHtml = keys.map((k) => `
+    <div class="key-item">
+      <div class="key-info">
+        <span class="key-name">${escapeHtml(k.name)}${k.is_admin ? ' <span class="admin-badge">admin</span>' : ''}</span>
+        <span class="key-preview">${escapeHtml(k.key_preview)}</span>
+      </div>
+      <button class="item-delete key-revoke" data-id="${k.id}" aria-label="Revoke key">🗑</button>
+    </div>`).join('');
+
+  panel.innerHTML = `
+    <div class="card-title">API Keys</div>
+    <div id="key-list">${rowsHtml}</div>
+    <div class="create-key-row">
+      <input id="new-key-name" type="text" placeholder="Friend's name…" class="key-name-input" />
+      <button id="create-key-btn" class="icon-btn">+ Add key</button>
+    </div>`;
+
+  panel.querySelectorAll('.key-revoke').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const id = parseInt(e.currentTarget.dataset.id, 10);
+      if (!confirm('Revoke this key?')) return;
+      try {
+        await apiRevokeKey(id);
+        showToast('Key revoked.');
+        renderAdminPanel();
+      } catch (err) {
+        showToast('Revoke failed: ' + err.message);
+      }
+    });
+  });
+
+  $('create-key-btn').addEventListener('click', async () => {
+    const name = ($('new-key-name').value || '').trim();
+    if (!name) { showToast('Enter a name first.'); return; }
+    try {
+      const result = await apiCreateKey(name);
+      showToast(`Key created for ${result.name}!`);
+      $('new-key-name').value = '';
+      // Show the full key in a modal/alert so the admin can copy it
+      alert(`New key for "${result.name}":\n\n${result.key}\n\nShare this key and your server URL with them.`);
+      renderAdminPanel();
+    } catch (err) {
+      showToast('Create failed: ' + err.message);
+    }
   });
 }
 
@@ -406,43 +567,14 @@ function escapeHtml(str) {
 }
 
 // ──────────────────────────────────────────────
-// Export
+// Export (redirect to server for download)
 // ──────────────────────────────────────────────
 function exportJSON() {
-  const ds = loadDataset();
-  if (ds.length === 0) { showToast('No data to export.'); return; }
-  const blob = new Blob([JSON.stringify(ds, null, 2)], { type: 'application/json' });
-  triggerDownload(blob, `flipphone_dataset_${Date.now()}.json`);
-  showToast('Exported as JSON!');
+  window.location.href = exportUrl('json');
 }
 
 function exportCSV() {
-  const ds = loadDataset();
-  if (ds.length === 0) { showToast('No data to export.'); return; }
-
-  const rows = ['id,trick,timestamp,durationMs,sampleCount,sampleRateHz,t,ax,ay,az,gx,gy,gz'];
-  ds.forEach((r) => {
-    r.samples.forEach((s) => {
-      rows.push([
-        r.id, `"${r.trick}"`, r.timestamp, r.durationMs,
-        r.sampleCount, r.sampleRateHz,
-        s.t, s.ax, s.ay, s.az, s.gx, s.gy, s.gz,
-      ].join(','));
-    });
-  });
-
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-  triggerDownload(blob, `flipphone_dataset_${Date.now()}.csv`);
-  showToast('Exported as CSV!');
-}
-
-function triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  window.location.href = exportUrl('csv');
 }
 
 // ──────────────────────────────────────────────
@@ -469,12 +601,69 @@ function switchTab(tabName) {
 }
 
 // ──────────────────────────────────────────────
+// Setup modal (API key + server URL)
+// ──────────────────────────────────────────────
+function openSetupModal(prefillError) {
+  const modal = $('setup-modal');
+  const cfg = getConfig();
+  $('setup-server-url').value = cfg.serverUrl || window.location.origin;
+  $('setup-api-key').value = cfg.apiKey || '';
+  $('setup-error').textContent = prefillError || '';
+  modal.classList.remove('hidden');
+}
+
+function closeSetupModal() {
+  $('setup-modal').classList.add('hidden');
+}
+
+async function submitSetup() {
+  const serverUrl = ($('setup-server-url').value || '').trim().replace(/\/$/, '');
+  const apiKey    = ($('setup-api-key').value   || '').trim();
+  const errorEl   = $('setup-error');
+
+  if (!serverUrl) { errorEl.textContent = 'Server URL is required.'; return; }
+  if (!apiKey)    { errorEl.textContent = 'API key is required.';    return; }
+
+  const btn = $('setup-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+  errorEl.textContent = '';
+
+  try {
+    // Test the credentials against /api/me
+    const resp = await fetch(serverUrl + '/api/me', {
+      headers: { 'X-API-Key': apiKey },
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP ${resp.status}`);
+    }
+    const me = await resp.json();
+    setConfig({ serverUrl, apiKey });
+    state.isAdmin = !!me.is_admin;
+    closeSetupModal();
+    showToast(`✅ Connected as ${me.name}${me.is_admin ? ' (admin)' : ''}`);
+    updateHeaderName(me.name, me.is_admin);
+    renderDataset();
+  } catch (err) {
+    errorEl.textContent = 'Connection failed: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+  }
+}
+
+function updateHeaderName(name, isAdmin) {
+  const el = $('connected-as');
+  if (el) el.textContent = name + (isAdmin ? ' ★' : '');
+}
+
+// ──────────────────────────────────────────────
 // Init
 // ──────────────────────────────────────────────
-function init() {
+async function init() {
   buildTrickGrid();
   initSensors();
-  renderDataset();
 
   // Tab buttons
   document.querySelectorAll('.tab-btn').forEach((btn) => {
@@ -491,13 +680,21 @@ function init() {
   requestPermBtn.addEventListener('click', requestSensorPermission);
 
   // Review actions
-  btnSave.addEventListener('click', () => {
-    if (state.pendingRecording) {
-      addRecording(state.pendingRecording);
-      renderDataset();
-      showToast('✅ Recording saved!');
+  btnSave.addEventListener('click', async () => {
+    if (!state.pendingRecording) { closeReview(); return; }
+    btnSave.disabled = true;
+    btnSave.textContent = 'Saving…';
+    try {
+      await apiSaveRecording(state.pendingRecording);
+      showToast('✅ Recording saved to server!');
+      datasetCount.textContent = parseInt(datasetCount.textContent || '0', 10) + 1;
+    } catch (err) {
+      showToast('⚠️ Save failed: ' + err.message);
+    } finally {
+      btnSave.disabled = false;
+      btnSave.textContent = '✅ Save';
+      closeReview();
     }
-    closeReview();
   });
 
   btnDiscard.addEventListener('click', () => {
@@ -509,14 +706,40 @@ function init() {
   $('btn-export-json').addEventListener('click', exportJSON);
   $('btn-export-csv').addEventListener('click', exportCSV);
 
-  // Clear all
-  $('btn-clear').addEventListener('click', () => {
-    if (confirm('Delete all recordings? This cannot be undone.')) {
-      clearDataset();
-      renderDataset();
-      showToast('Dataset cleared.');
-    }
+  // Settings button (re-open setup modal)
+  $('btn-settings').addEventListener('click', () => openSetupModal());
+
+  // Setup modal submit/cancel
+  $('setup-submit-btn').addEventListener('click', submitSetup);
+  $('setup-cancel-btn').addEventListener('click', () => {
+    if (isConfigured()) closeSetupModal();
   });
+  $('setup-api-key').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitSetup();
+  });
+
+  // Check if already configured
+  if (isConfigured()) {
+    // Verify the stored config quietly
+    try {
+      const cfg = getConfig();
+      const resp = await fetch(cfg.serverUrl + '/api/me', {
+        headers: { 'X-API-Key': cfg.apiKey },
+      });
+      if (resp.ok) {
+        const me = await resp.json();
+        state.isAdmin = !!me.is_admin;
+        updateHeaderName(me.name, me.is_admin);
+        renderDataset();
+      } else {
+        openSetupModal('Your key or server URL may have changed. Please reconnect.');
+      }
+    } catch (_) {
+      openSetupModal('Could not reach the server. Please check the URL.');
+    }
+  } else {
+    openSetupModal();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

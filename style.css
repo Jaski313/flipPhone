@@ -540,7 +540,225 @@ header h1 {
   opacity: 1;
 }
 
-/* ──────────────────── RESPONSIVE ──────────────────── */
+/* ──────────────────── HEADER EXTRAS ──────────────────── */
+.connected-as {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background var(--transition);
+}
+
+.settings-btn:hover {
+  background: var(--border);
+}
+
+/* ──────────────────── SETUP MODAL ──────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-sheet {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-sheet h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.modal-desc {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-field label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.modal-field input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color var(--transition);
+  width: 100%;
+}
+
+.modal-field input:focus {
+  border-color: var(--accent);
+}
+
+.setup-error {
+  font-size: 0.82rem;
+  color: var(--danger);
+  min-height: 1.2em;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+}
+
+.modal-cancel-btn {
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modal-submit-btn {
+  padding: 14px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #000;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.modal-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ──────────────────── ADMIN PANEL ──────────────────── */
+.admin-panel {
+  margin-top: 4px;
+}
+
+.admin-panel.hidden {
+  display: none;
+}
+
+.key-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.key-item:last-of-type {
+  border-bottom: none;
+}
+
+.key-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.key-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.admin-badge {
+  background: var(--accent);
+  color: #000;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.key-preview {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.create-key-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.key-name-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 9px 12px;
+  outline: none;
+}
+
+.key-name-input:focus {
+  border-color: var(--accent);
+}
+
+.key-revoke {
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background var(--transition);
+}
+
+.key-revoke:hover {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+}
+
 @media (min-width: 480px) {
   #app {
     border-left: 1px solid var(--border);

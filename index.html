@@ -16,7 +16,9 @@
     <!-- ── Header ── -->
     <header>
       <h1>📱 FlipPhone</h1>
+      <span id="connected-as" class="connected-as"></span>
       <span id="dataset-count">0</span>
+      <button id="btn-settings" class="settings-btn" aria-label="Settings">⚙️</button>
     </header>
 
     <!-- ── Tab bar ── -->
@@ -98,13 +100,17 @@
     <section id="dataset-view" class="view" role="tabpanel">
 
       <div class="dataset-header">
-        <h2>Your Dataset</h2>
+        <h2>Dataset</h2>
         <button class="icon-btn" id="btn-export-json">⬇ JSON</button>
         <button class="icon-btn" id="btn-export-csv">⬇ CSV</button>
-        <button class="icon-btn danger" id="btn-clear">🗑 Clear</button>
       </div>
 
       <div id="dataset-list">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Admin key management panel (shown for admin keys only) -->
+      <div id="admin-panel" class="card admin-panel hidden">
         <!-- Populated by JS -->
       </div>
 
@@ -146,6 +152,34 @@
 
   <!-- Toast notification -->
   <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ════════════════ SETUP MODAL ════════════════ -->
+  <div id="setup-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="setup-heading">
+    <div class="modal-sheet">
+      <h2 id="setup-heading">🔑 Connect to server</h2>
+      <p class="modal-desc">Enter the server URL and your API key to start collecting flips.</p>
+
+      <div class="modal-field">
+        <label for="setup-server-url">Server URL</label>
+        <input type="url" id="setup-server-url" placeholder="https://your-server.com"
+               autocomplete="url" inputmode="url" />
+      </div>
+
+      <div class="modal-field">
+        <label for="setup-api-key">API Key</label>
+        <input type="text" id="setup-api-key" placeholder="fp_…"
+               autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none" />
+      </div>
+
+      <p id="setup-error" class="setup-error" role="alert"></p>
+
+      <div class="modal-actions">
+        <button id="setup-cancel-btn" class="modal-cancel-btn">Cancel</button>
+        <button id="setup-submit-btn" class="modal-submit-btn">Connect</button>
+      </div>
+    </div>
+  </div>
+  <!-- ════════════════ END SETUP MODAL ════════════════ -->
 
   <script src="app.js"></script>
 </body>
