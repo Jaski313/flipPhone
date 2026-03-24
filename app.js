@@ -631,11 +631,6 @@ function drawPhone3D(ctx, W, H, q) {
     }
   }
 
-  // Draw shadow on ground
-  ctx.fillStyle = "rgba(0,229,255,0.04)";
-  ctx.beginPath();
-  ctx.ellipse(cx, cy + scale * 0.9, scale * 0.5, scale * 0.1, 0, 0, Math.PI * 2);
-  ctx.fill();
 }
 
 function initAnimation(samples) {
