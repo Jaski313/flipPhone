@@ -258,11 +258,56 @@ function onMotion(e) {
 }
 
 function attachMotionListener() {
-  window.addEventListener("devicemotion", onMotion);
-  state.sensorAvailable = true;
-  state.sensorPermissionGranted = true;
+  // Track whether we've received at least one non-null reading
+  let gotRealData = false;
+  let checkTimeout = null;
+
+  function wrappedOnMotion(e) {
+    const acc = e.accelerationIncludingGravity || e.acceleration || {};
+    // Detect if the sensor is actually delivering data (not all nulls/zeros)
+    if (!gotRealData) {
+      const hasData =
+        (acc.x != null && acc.x !== 0) ||
+        (acc.y != null && acc.y !== 0) ||
+        (acc.z != null && acc.z !== 0);
+      if (hasData) {
+        gotRealData = true;
+        clearTimeout(checkTimeout);
+        state.sensorAvailable = true;
+        state.sensorPermissionGranted = true;
+        statusMsg.textContent = "Sensor active – select a trick and record!";
+      }
+    }
+    onMotion(e);
+  }
+
+  window.addEventListener("devicemotion", wrappedOnMotion);
   permissionBanner.classList.add("hidden");
-  statusMsg.textContent = "Sensor active – select a trick and record!";
+
+  // After 1.5 s, check if we actually received real sensor data
+  checkTimeout = setTimeout(() => {
+    if (!gotRealData) {
+      statusMsg.textContent = "Sensors detected but not delivering data.";
+      // Check if this is an insecure context (HTTP)
+      if (
+        window.location.protocol === "http:" &&
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1"
+      ) {
+        statusMsg.textContent =
+          "⚠️ Sensors require HTTPS! Open this page via https:// or localhost.";
+      } else {
+        statusMsg.textContent =
+          "⚠️ Sensors not responding. Try shaking the device, or use a different browser.";
+      }
+      // Still mark as granted so recording can be attempted
+      // (some devices start reporting only after first shake)
+      state.sensorPermissionGranted = true;
+    }
+  }, 1500);
+
+  // Optimistically set state so UI isn't blocked
+  state.sensorPermissionGranted = true;
 }
 
 async function requestSensorPermission() {
@@ -289,7 +334,31 @@ async function requestSensorPermission() {
 function initSensors() {
   if (typeof DeviceMotionEvent === "undefined") {
     statusMsg.textContent = "No motion sensors detected on this device.";
+    // Check insecure context
+    if (
+      window.location.protocol === "http:" &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
+      statusMsg.textContent =
+        "⚠️ Sensors require HTTPS! Open this page via https:// or localhost.";
+    }
     return;
+  }
+
+  // Check Permissions API (some Android Chrome versions)
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions
+      .query({ name: "accelerometer" })
+      .then((result) => {
+        if (result.state === "denied") {
+          statusMsg.textContent =
+            "⚠️ Sensor permission blocked in browser settings. Allow motion sensors for this site.";
+        }
+      })
+      .catch(() => {
+        /* Permissions API may not support this name – ignore */
+      });
   }
 
   if (typeof DeviceMotionEvent.requestPermission === "function") {
@@ -297,7 +366,7 @@ function initSensors() {
     permissionBanner.classList.remove("hidden");
     statusMsg.textContent = 'Tap "Enable Sensors" to start.';
   } else {
-    // Android / desktop browsers
+    // Android / desktop browsers – attach and verify
     attachMotionListener();
   }
 }
@@ -593,14 +662,63 @@ async function renderAdminPanel() {
       const result = await apiCreateKey(name);
       showToast(`Key created for ${result.name}!`);
       $("new-key-name").value = "";
-      // Show the full key in a modal/alert so the admin can copy it
-      alert(
-        `New key for "${result.name}":\n\n${result.key}\n\nShare this key and your server URL with them.`,
-      );
+      showKeyModal(result.name, result.key);
       renderAdminPanel();
     } catch (err) {
       showToast("Create failed: " + err.message);
     }
+  });
+}
+
+function showKeyModal(name, key) {
+  // Remove existing modal if any
+  const existing = document.getElementById("key-modal");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "key-modal";
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-sheet">
+      <h2>🔑 Key created</h2>
+      <p class="modal-desc">New key for <strong>${escapeHtml(name)}</strong>. Copy it now — it won't be shown again.</p>
+      <div class="modal-field">
+        <label>API Key</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="key-modal-value" value="${escapeHtml(key)}" readonly
+                 style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--accent);font-family:monospace;font-size:0.85rem;padding:11px 14px;" />
+          <button id="key-modal-copy" class="modal-submit-btn" style="white-space:nowrap;padding:11px 18px;">Copy</button>
+        </div>
+      </div>
+      <div class="modal-actions" style="grid-template-columns:1fr;">
+        <button id="key-modal-close" class="modal-cancel-btn" style="width:100%;">Done</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  document.getElementById("key-modal-copy").addEventListener("click", () => {
+    const input = document.getElementById("key-modal-value");
+    if (navigator.clipboard) {
+      navigator.clipboard
+        .writeText(key)
+        .then(() => {
+          showToast("✅ Key copied!");
+        })
+        .catch(() => {
+          input.select();
+          document.execCommand("copy");
+          showToast("✅ Key copied!");
+        });
+    } else {
+      input.select();
+      document.execCommand("copy");
+      showToast("✅ Key copied!");
+    }
+  });
+
+  document.getElementById("key-modal-close").addEventListener("click", () => {
+    overlay.remove();
   });
 }
 
