@@ -768,7 +768,6 @@ function switchTab(tabName) {
 function openSetupModal(prefillError) {
   const modal = $("setup-modal");
   const cfg = getConfig();
-  $("setup-server-url").value = cfg.serverUrl || window.location.origin;
   $("setup-api-key").value = cfg.apiKey || "";
   $("setup-error").textContent = prefillError || "";
   modal.classList.remove("hidden");
@@ -779,16 +778,10 @@ function closeSetupModal() {
 }
 
 async function submitSetup() {
-  const serverUrl = ($("setup-server-url").value || "")
-    .trim()
-    .replace(/\/$/, "");
+  const serverUrl = window.location.origin;
   const apiKey = ($("setup-api-key").value || "").trim();
   const errorEl = $("setup-error");
 
-  if (!serverUrl) {
-    errorEl.textContent = "Server URL is required.";
-    return;
-  }
   if (!apiKey) {
     errorEl.textContent = "API key is required.";
     return;
