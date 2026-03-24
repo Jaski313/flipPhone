@@ -675,6 +675,16 @@ header h1 {
   border-color: var(--accent);
 }
 
+.modal-disclaimer {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
 .setup-error {
   font-size: 0.82rem;
   color: var(--danger);
