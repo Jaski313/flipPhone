@@ -418,10 +418,45 @@ header h1 {
   color: var(--danger);
 }
 
+/* ──────────────────── SORT BUTTONS ──────────────────── */
+.sort-btns {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.sort-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.sort-btn.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
 #dataset-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.dataset-group-header {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  padding: 8px 0 2px;
+  border-bottom: 1px solid var(--border);
 }
 
 .dataset-empty {
@@ -455,6 +490,21 @@ header h1 {
   font-size: 0.78rem;
   color: var(--text-dim);
   margin-top: 2px;
+}
+
+.recording-item .item-play {
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background var(--transition);
+}
+
+.recording-item .item-play:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .recording-item .item-delete {

@@ -48,6 +48,8 @@ const state = {
   pendingRecording: null, // filled when review sheet opens
   isAdmin: false,
   references: {},         // trick -> recording data (loaded from server)
+  datasetSort: "date",    // "date" | "trick" | "collector"
+  datasetCache: null,     // cached recordings for re-sorting without refetch
 };
 
 // ──────────────────────────────────────────────
@@ -820,12 +822,23 @@ function refAnimLoop() {
 // ──────────────────────────────────────────────
 // Review sheet
 // ──────────────────────────────────────────────
-function openReview(rec) {
+function openReview(rec, reviewOnly = false) {
   reviewTrickName.textContent = rec.trick;
   reviewDuration.textContent = (rec.durationMs / 1000).toFixed(2) + "s";
   reviewSamples.textContent = rec.sampleCount;
   reviewSampleRate.textContent = rec.sampleRateHz + " Hz";
 
+  // In review-only mode (from dataset), hide save/discard buttons and show close
+  if (reviewOnly) {
+    btnSave.style.display = "none";
+    btnDiscard.textContent = "Close";
+    state.pendingRecording = null;
+  } else {
+    btnSave.style.display = "";
+    btnDiscard.textContent = "❌ Discard";
+  }
+
+  stopRefAnimation();
   reviewOverlay.classList.remove("hidden");
   initAnimation(rec.samples);
 }
@@ -841,30 +854,41 @@ function closeReview() {
 // ──────────────────────────────────────────────
 // Dataset view
 // ──────────────────────────────────────────────
-async function renderDataset() {
-  datasetList.innerHTML = '<p class="dataset-empty">Loading…</p>';
-
-  // Hide export buttons for non-admins
+async function renderDataset(refetchData = true) {
+  // Hide export & sort buttons for non-admins
   $("btn-export-json").style.display = state.isAdmin ? "" : "none";
   $("btn-export-csv").style.display = state.isAdmin ? "" : "none";
+  $("sort-btns").style.display = state.isAdmin ? "" : "none";
 
-  // Load stats (per-trick counts) from the dedicated endpoint
-  let stats;
-  try {
-    const statsResp = await apiFetch("/api/stats");
-    if (!statsResp.ok) throw new Error("Could not load stats");
-    stats = await statsResp.json();
-  } catch (err) {
-    stats = null;
+  // Update sort button state
+  document.querySelectorAll(".sort-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.sort === state.datasetSort);
+  });
+
+  if (refetchData) {
+    datasetList.innerHTML = '<p class="dataset-empty">Loading…</p>';
+
+    let stats;
+    try {
+      const statsResp = await apiFetch("/api/stats");
+      if (!statsResp.ok) throw new Error("Could not load stats");
+      stats = await statsResp.json();
+    } catch (err) {
+      stats = null;
+    }
+
+    let ds;
+    try {
+      ds = await apiLoadRecordings();
+    } catch (err) {
+      datasetList.innerHTML = `<p class="dataset-empty">⚠️ Could not load recordings.<br><small>${escapeHtml(err.message)}</small></p>`;
+      return;
+    }
+
+    state.datasetCache = { ds, stats };
   }
 
-  let ds;
-  try {
-    ds = await apiLoadRecordings();
-  } catch (err) {
-    datasetList.innerHTML = `<p class="dataset-empty">⚠️ Could not load recordings.<br><small>${escapeHtml(err.message)}</small></p>`;
-    return;
-  }
+  const { ds, stats } = state.datasetCache || { ds: [], stats: null };
 
   datasetCount.textContent = stats ? stats.total : ds.length;
 
@@ -879,6 +903,15 @@ async function renderDataset() {
     }
     return;
   }
+
+  // Sort recordings
+  const sorted = [...ds];
+  if (state.datasetSort === "trick") {
+    sorted.sort((a, b) => a.trick.localeCompare(b.trick) || new Date(b.timestamp) - new Date(a.timestamp));
+  } else if (state.datasetSort === "collector") {
+    sorted.sort((a, b) => (a.collector || "").localeCompare(b.collector || "") || new Date(b.timestamp) - new Date(a.timestamp));
+  }
+  // "date" is the default order from the server (newest first)
 
   // Trick count summary from /api/stats
   let statsHtml = "";
@@ -906,20 +939,32 @@ async function renderDataset() {
   // Build a set of current reference recording IDs
   const refIds = new Set(Object.values(state.references).map(r => r.id));
 
-  const itemsHtml = ds
+  // Group by section header when sorting by trick or collector
+  let prevGroup = null;
+  const itemsHtml = sorted
     .map((r) => {
+      let groupHeader = "";
+      if (state.datasetSort === "trick" && r.trick !== prevGroup) {
+        prevGroup = r.trick;
+        groupHeader = `<div class="dataset-group-header">${escapeHtml(r.trick)}</div>`;
+      } else if (state.datasetSort === "collector" && (r.collector || "") !== prevGroup) {
+        prevGroup = r.collector || "";
+        groupHeader = `<div class="dataset-group-header">${escapeHtml(r.collector || "Unknown")}</div>`;
+      }
+
       const date = new Date(r.timestamp).toLocaleString();
       const collector = r.collector ? ` · ${escapeHtml(r.collector)}` : "";
       const isRef = refIds.has(r.id);
       const refBtnHtml = state.isAdmin
         ? `<button class="ref-btn${isRef ? " is-ref" : ""}" data-id="${escapeHtml(r.id)}" data-trick="${escapeHtml(r.trick)}">${isRef ? "★ Ref" : "Set Ref"}</button>`
         : "";
-      return `
+      return `${groupHeader}
       <div class="recording-item" data-id="${escapeHtml(r.id)}">
         <div class="trick-label">
           <div class="trick-name">${escapeHtml(r.trick)}${isRef ? ' <span style="color:var(--accent);font-size:0.75rem;">★ Reference</span>' : ""}</div>
           <div class="trick-meta">${date} · ${(r.durationMs / 1000).toFixed(2)}s · ${r.sampleCount} samples · ${r.sampleRateHz} Hz${collector}</div>
         </div>
+        <button class="item-play" data-id="${escapeHtml(r.id)}" aria-label="Play animation">▶</button>
         ${refBtnHtml}
         <button class="item-delete" data-id="${escapeHtml(r.id)}" aria-label="Delete recording">🗑</button>
       </div>`;
@@ -927,6 +972,15 @@ async function renderDataset() {
     .join("");
 
   datasetList.innerHTML = statsHtml + itemsHtml;
+
+  // Attach play listeners – open review overlay with animation
+  datasetList.querySelectorAll(".item-play").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const id = e.currentTarget.dataset.id;
+      const rec = ds.find((r) => r.id === id);
+      if (rec) openReview(rec, true);
+    });
+  });
 
   // Attach delete listeners
   datasetList.querySelectorAll(".item-delete").forEach((btn) => {
@@ -1235,6 +1289,14 @@ async function init() {
   btnDiscard.addEventListener("click", () => {
     showToast("❌ Recording discarded.");
     closeReview();
+  });
+
+  // Sort buttons
+  document.querySelectorAll(".sort-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.datasetSort = btn.dataset.sort;
+      renderDataset(false);
+    });
   });
 
   // Export buttons
