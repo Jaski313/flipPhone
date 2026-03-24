@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="theme-color" content="#0d0d0d" />
+    <title>FlipPhone – Playground</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>🎮 Playground</h1>
+        <a href="/" class="back-link">← App</a>
+      </header>
+
+      <section class="view active" style="display: flex">
+        <!-- Sensor hint (desktop / no sensors) -->
+        <div id="pg-sensor-hint" class="card pg-hint hidden">
+          <p>
+            This feature requires a phone with motion sensors.<br />
+            Open this page on your phone to try it out.
+          </p>
+        </div>
+
+        <!-- iOS permission banner -->
+        <div id="pg-permission-banner" class="hidden">
+          <span>Motion sensor access is required.</span>
+          <button id="pg-request-permission-btn">Enable Sensors</button>
+        </div>
+
+        <!-- Record -->
+        <div class="card record-area">
+          <div id="pg-timer-display">0:00.0</div>
+          <button id="pg-record-btn" aria-label="Start / stop recording">
+            <span class="btn-icon">⏺</span>
+            <span class="btn-label">RECORD</span>
+          </button>
+          <p id="pg-status-msg">Initializing sensors…</p>
+        </div>
+
+        <!-- Results -->
+        <div id="pg-results-card" class="card hidden">
+          <div id="pg-trick-name"></div>
+          <div id="pg-confidence"></div>
+          <div id="pg-chart"></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="playground.js"></script>
+  </body>
+</html>

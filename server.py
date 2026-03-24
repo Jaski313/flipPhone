@@ -37,6 +37,8 @@ import os
 import secrets
 import sqlite3
 import string
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -47,6 +49,7 @@ from flask import Flask, g, jsonify, request, send_file, send_from_directory
 # ──────────────────────────────────────────────
 app = Flask(__name__, static_folder='.')
 DB_PATH = os.environ.get('FLIPPHONE_DB', 'flipphone.db')
+PREDICTION_API_URL = os.environ.get('PREDICTION_API_URL', 'http://localhost:8000')
 
 
 def get_db():
@@ -159,13 +162,42 @@ def index():
     return send_from_directory('.', 'index.html')
 
 
+@app.route('/playground.html')
+def playground():
+    return send_from_directory('.', 'playground.html')
+
+
 @app.route('/<path:path>')
 def static_files(path):
     # Only serve known static assets; don't let this shadow API routes
-    allowed = {'style.css', 'app.js', 'favicon.ico'}
+    allowed = {'style.css', 'app.js', 'playground.html', 'playground.js', 'favicon.ico'}
     if path in allowed:
         return send_from_directory('.', path)
     return jsonify({'error': 'Not found'}), 404
+
+
+# ──────────────────────────────────────────────
+# /api/predict  – proxy to prediction service (no auth required)
+# ──────────────────────────────────────────────
+@app.route('/api/predict', methods=['POST'])
+def proxy_predict():
+    data = request.get_data()
+    target = PREDICTION_API_URL.rstrip('/') + '/api/predict'
+    try:
+        req = urllib.request.Request(
+            target,
+            data=data,
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read()
+            return app.response_class(response=body, status=resp.status, mimetype='application/json')
+    except urllib.error.HTTPError as e:
+        body = e.read()
+        return app.response_class(response=body, status=e.code, mimetype='application/json')
+    except Exception as e:
+        return jsonify({'error': f'Prediction service unavailable: {str(e)}'}), 502
 
 
 # ──────────────────────────────────────────────
