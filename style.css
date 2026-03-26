@@ -443,6 +443,12 @@ header h1 {
   border-color: var(--accent);
 }
 
+#admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 #admin-section.hidden {
   display: none;
 }
@@ -826,6 +832,35 @@ header h1 {
   border-radius: 10px;
   background: var(--surface2);
   display: block;
+}
+
+.model-toggle-row {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 4px;
+}
+
+.model-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.model-toggle-btn:active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.model-toggle-icon {
+  font-size: 1rem;
 }
 
 .ref-btn {

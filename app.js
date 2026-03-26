@@ -51,6 +51,7 @@ const state = {
   datasetCache: null,     // cached recordings for re-rendering without refetch
   filterTrick: "",        // admin filter: trick name or "" for all
   filterCollector: "",    // admin filter: collector name or "" for all
+  animModel: localStorage.getItem("flipphone_anim_model") || "phone", // "phone" or "skateboard"
 };
 
 // ──────────────────────────────────────────────
@@ -629,6 +630,121 @@ function drawPhone3D(ctx, W, H, q) {
 
 }
 
+function drawSkateboard3D(ctx, W, H, q) {
+  const m = qToMatrix(q);
+  const cx = W / 2;
+  const cy = H / 2;
+  const scale = Math.min(W, H) * 0.28;
+  const dist = 4;
+
+  // Skateboard deck: long, narrow, thin
+  const dl = 1.1, dw = 0.35, dd = 0.04;
+  const hl = dl/2, hw = dw/2, hd = dd/2;
+
+  // Nose/tail kick: raise ends upward (z+)
+  const kick = 0.12;
+  const kickLen = 0.2; // how far along the length the kick starts
+
+  // Deck corners (flat middle section)
+  const flatHL = hl - kickLen;
+  const deckPts = [
+    // bottom face
+    [-hl, -hw, -hd + kick], [-flatHL, -hw, -hd], [flatHL, -hw, -hd], [hl, -hw, -hd + kick],
+    [hl, hw, -hd + kick], [flatHL, hw, -hd], [-flatHL, hw, -hd], [-hl, hw, -hd + kick],
+    // top face
+    [-hl, -hw, hd + kick], [-flatHL, -hw, hd], [flatHL, -hw, hd], [hl, -hw, hd + kick],
+    [hl, hw, hd + kick], [flatHL, hw, hd], [-flatHL, hw, hd], [-hl, hw, hd + kick],
+  ];
+
+  const projected = deckPts.map(p => project(p, m, cx, cy, scale, dist));
+
+  // Faces of the deck
+  const faces = [
+    { idx: [0,1,2,3,4,5,6,7], color: "#3a2010", label: null },        // bottom
+    { idx: [8,9,10,11,12,13,14,15], color: "#1a1a1a", label: "grip" }, // top (griptape)
+    { idx: [0,1,9,8], color: "#4a2a15", label: null },         // side left front
+    { idx: [1,2,10,9], color: "#4a2a15", label: null },        // side left mid
+    { idx: [2,3,11,10], color: "#4a2a15", label: null },       // side left back
+    { idx: [7,6,14,15], color: "#4a2a15", label: null },       // side right front
+    { idx: [6,5,13,14], color: "#4a2a15", label: null },       // side right mid
+    { idx: [5,4,12,13], color: "#4a2a15", label: null },       // side right back
+    { idx: [0,7,15,8], color: "#4a2a15", label: null },        // nose
+    { idx: [3,4,12,11], color: "#4a2a15", label: null },       // tail
+  ];
+
+  const facesWithDepth = faces.map(f => {
+    const ps = f.idx.map(i => projected[i]);
+    const avgZ = ps.reduce((s, p) => s + p[2], 0) / ps.length;
+    const ax = ps[1][0] - ps[0][0], ay = ps[1][1] - ps[0][1];
+    const bx = ps[ps.length-1][0] - ps[0][0], by = ps[ps.length-1][1] - ps[0][1];
+    const cross = ax * by - ay * bx;
+    return { ...f, ps, avgZ, cross };
+  });
+
+  facesWithDepth.sort((a, b) => a.avgZ - b.avgZ);
+
+  for (const face of facesWithDepth) {
+    ctx.beginPath();
+    ctx.moveTo(face.ps[0][0], face.ps[0][1]);
+    for (let i = 1; i < face.ps.length; i++) {
+      ctx.lineTo(face.ps[i][0], face.ps[i][1]);
+    }
+    ctx.closePath();
+    ctx.fillStyle = face.color;
+    ctx.fill();
+    ctx.strokeStyle = "#555";
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Griptape texture on top face
+    if (face.label === "grip" && face.cross < 0) {
+      ctx.fillStyle = "rgba(255,255,255,0.03)";
+      ctx.fill();
+    }
+  }
+
+  // Draw wheels (4 wheels as small circles)
+  const wheelPositions = [
+    [-hl + 0.22, -hw - 0.02, -hd - 0.04],
+    [-hl + 0.22,  hw + 0.02, -hd - 0.04],
+    [ hl - 0.22, -hw - 0.02, -hd - 0.04],
+    [ hl - 0.22,  hw + 0.02, -hd - 0.04],
+  ];
+  const wheelR = 0.06;
+  for (const wp of wheelPositions) {
+    const p = project(wp, m, cx, cy, scale, dist);
+    const r = (wheelR * scale) / (dist + 1);
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], Math.max(r, 2), 0, Math.PI * 2);
+    ctx.fillStyle = "#f5f5dc";
+    ctx.fill();
+    ctx.strokeStyle = "#888";
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Draw trucks (axles connecting wheels)
+  const truckPairs = [[0, 1], [2, 3]];
+  for (const [a, b] of truckPairs) {
+    const pa = project(wheelPositions[a], m, cx, cy, scale, dist);
+    const pb = project(wheelPositions[b], m, cx, cy, scale, dist);
+    ctx.beginPath();
+    ctx.moveTo(pa[0], pa[1]);
+    ctx.lineTo(pb[0], pb[1]);
+    ctx.strokeStyle = "#999";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function draw3D(ctx, W, H, q) {
+  if (state.animModel === "skateboard") {
+    drawSkateboard3D(ctx, W, H, q);
+  } else {
+    drawPhone3D(ctx, W, H, q);
+  }
+}
+
 function initAnimation(samples) {
   anim.canvas = $("anim-canvas");
   anim.ctx = anim.canvas.getContext("2d");
@@ -736,7 +852,7 @@ function renderAnimFrame() {
 
   if (anim.orientations.length < 2) return;
   const q = getQuaternionAtTime(anim.samples, anim.orientations, anim.currentTime);
-  drawPhone3D(ctx, W, H, q);
+  draw3D(ctx, W, H, q);
 }
 
 // ──────────────────────────────────────────────
@@ -807,7 +923,7 @@ function refAnimLoop() {
 
   if (refAnim.orientations.length >= 2) {
     const q = getQuaternionAtTime(refAnim.samples, refAnim.orientations, refAnim.currentTime);
-    drawPhone3D(ctx, W, H, q);
+    draw3D(ctx, W, H, q);
   }
 
   refAnim.rafId = requestAnimationFrame(refAnimLoop);
@@ -1286,6 +1402,19 @@ async function init() {
     renderDataset(false);
   });
 
+
+  // 3D model toggle
+  $("model-toggle").addEventListener("click", () => {
+    state.animModel = state.animModel === "phone" ? "skateboard" : "phone";
+    localStorage.setItem("flipphone_anim_model", state.animModel);
+    $("model-toggle-icon").textContent = state.animModel === "phone" ? "📱" : "🛹";
+    $("model-toggle-label").textContent = state.animModel === "phone" ? "Phone" : "Board";
+    // Re-render current frames
+    if (anim.orientations.length >= 2) renderAnimFrame();
+  });
+  // Init toggle label
+  $("model-toggle-icon").textContent = state.animModel === "phone" ? "📱" : "🛹";
+  $("model-toggle-label").textContent = state.animModel === "phone" ? "Phone" : "Board";
 
   // Settings button (re-open setup modal)
   $("btn-settings").addEventListener("click", () => openSetupModal());
