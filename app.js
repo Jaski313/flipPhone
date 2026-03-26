@@ -637,44 +637,48 @@ function drawSkateboard3D(ctx, W, H, q) {
   const scale = Math.min(W, H) * 0.28;
   const dist = 4;
 
-  // Skateboard deck: long, narrow, thin
-  const dl = 1.1, dw = 0.35, dd = 0.04;
-  const hl = dl/2, hw = dw/2, hd = dd/2;
+  // Match phone axes: X = width(0.5), Y = length(1.0), Z = thickness
+  // Phone: width=0.5, height=1.0, depth=0.08
+  // Board: width=0.5, length=1.0, depth=0.04 (same X/Y, thinner Z)
+  const bw = 0.5, bl = 1.0, bd = 0.04;
+  const hw = bw/2, hl = bl/2, hd = bd/2;
 
-  // Nose/tail kick: raise ends upward (z+)
-  const kick = 0.12;
-  const kickLen = 0.2; // how far along the length the kick starts
-
-  // Deck corners (flat middle section)
+  // Nose/tail kick along Y axis (length)
+  const kick = 0.1;
+  const kickLen = 0.18;
   const flatHL = hl - kickLen;
-  const deckPts = [
-    // bottom face
-    [-hl, -hw, -hd + kick], [-flatHL, -hw, -hd], [flatHL, -hw, -hd], [hl, -hw, -hd + kick],
-    [hl, hw, -hd + kick], [flatHL, hw, -hd], [-flatHL, hw, -hd], [-hl, hw, -hd + kick],
-    // top face
-    [-hl, -hw, hd + kick], [-flatHL, -hw, hd], [flatHL, -hw, hd], [hl, -hw, hd + kick],
-    [hl, hw, hd + kick], [flatHL, hw, hd], [-flatHL, hw, hd], [-hl, hw, hd + kick],
+
+  // 16 points: bottom 0-7, top 8-15
+  // Y is the long axis (matching phone height axis)
+  const pts = [
+    // bottom face (z = -hd), with kick at Y extremes
+    [-hw, -hl, -hd + kick], [-hw, -flatHL, -hd], [-hw, flatHL, -hd], [-hw, hl, -hd + kick],
+    [ hw, -hl, -hd + kick], [ hw, -flatHL, -hd], [ hw, flatHL, -hd], [ hw, hl, -hd + kick],
+    // top face (z = +hd), with kick at Y extremes
+    [-hw, -hl, hd + kick], [-hw, -flatHL, hd], [-hw, flatHL, hd], [-hw, hl, hd + kick],
+    [ hw, -hl, hd + kick], [ hw, -flatHL, hd], [ hw, flatHL, hd], [ hw, hl, hd + kick],
   ];
 
-  const projected = deckPts.map(p => project(p, m, cx, cy, scale, dist));
+  const projected = pts.map(p => project(p, m, cx, cy, scale, dist));
 
-  // Faces of the deck
+  // Faces
   const faces = [
-    { idx: [0,1,2,3,4,5,6,7], color: "#3a2010", label: null },        // bottom
-    { idx: [8,9,10,11,12,13,14,15], color: "#1a1a1a", label: "grip" }, // top (griptape)
-    { idx: [0,1,9,8], color: "#4a2a15", label: null },         // side left front
-    { idx: [1,2,10,9], color: "#4a2a15", label: null },        // side left mid
-    { idx: [2,3,11,10], color: "#4a2a15", label: null },       // side left back
-    { idx: [7,6,14,15], color: "#4a2a15", label: null },       // side right front
-    { idx: [6,5,13,14], color: "#4a2a15", label: null },       // side right mid
-    { idx: [5,4,12,13], color: "#4a2a15", label: null },       // side right back
-    { idx: [0,7,15,8], color: "#4a2a15", label: null },        // nose
-    { idx: [3,4,12,11], color: "#4a2a15", label: null },       // tail
+    { idx: [0,1,2,3,7,6,5,4], color: "#3a2010" },            // bottom
+    { idx: [8,9,10,11,15,14,13,12], color: "#1a1a1a", grip: true }, // top (griptape)
+    { idx: [0,1,9,8], color: "#4a2a15" },     // left side nose
+    { idx: [1,2,10,9], color: "#4a2a15" },     // left side mid
+    { idx: [2,3,11,10], color: "#4a2a15" },    // left side tail
+    { idx: [4,5,13,12], color: "#4a2a15" },    // right side nose
+    { idx: [5,6,14,13], color: "#4a2a15" },    // right side mid
+    { idx: [6,7,15,14], color: "#4a2a15" },    // right side tail
+    { idx: [0,4,12,8], color: "#4a2a15" },     // nose end
+    { idx: [3,7,15,11], color: "#4a2a15" },    // tail end
   ];
 
   const facesWithDepth = faces.map(f => {
     const ps = f.idx.map(i => projected[i]);
     const avgZ = ps.reduce((s, p) => s + p[2], 0) / ps.length;
+    // Normal via cross product for backface culling
     const ax = ps[1][0] - ps[0][0], ay = ps[1][1] - ps[0][1];
     const bx = ps[ps.length-1][0] - ps[0][0], by = ps[ps.length-1][1] - ps[0][1];
     const cross = ax * by - ay * bx;
@@ -684,6 +688,9 @@ function drawSkateboard3D(ctx, W, H, q) {
   facesWithDepth.sort((a, b) => a.avgZ - b.avgZ);
 
   for (const face of facesWithDepth) {
+    // Skip back-facing polygons (no see-through)
+    if (face.cross > 0) continue;
+
     ctx.beginPath();
     ctx.moveTo(face.ps[0][0], face.ps[0][1]);
     for (let i = 1; i < face.ps.length; i++) {
@@ -695,24 +702,20 @@ function drawSkateboard3D(ctx, W, H, q) {
     ctx.strokeStyle = "#555";
     ctx.lineWidth = 0.5;
     ctx.stroke();
-
-    // Griptape texture on top face
-    if (face.label === "grip" && face.cross < 0) {
-      ctx.fillStyle = "rgba(255,255,255,0.03)";
-      ctx.fill();
-    }
   }
 
-  // Draw wheels (4 wheels as small circles)
+  // Wheels: positioned along Y axis (length), offset on X (width) and Z (below deck)
   const wheelPositions = [
-    [-hl + 0.22, -hw - 0.02, -hd - 0.04],
-    [-hl + 0.22,  hw + 0.02, -hd - 0.04],
-    [ hl - 0.22, -hw - 0.02, -hd - 0.04],
-    [ hl - 0.22,  hw + 0.02, -hd - 0.04],
+    [-hw - 0.02, -hl + 0.2, -hd - 0.04],
+    [ hw + 0.02, -hl + 0.2, -hd - 0.04],
+    [-hw - 0.02,  hl - 0.2, -hd - 0.04],
+    [ hw + 0.02,  hl - 0.2, -hd - 0.04],
   ];
-  const wheelR = 0.06;
+  const wheelR = 0.055;
   for (const wp of wheelPositions) {
     const p = project(wp, m, cx, cy, scale, dist);
+    // Only draw if below deck (visible)
+    if (p[2] < 0) continue;
     const r = (wheelR * scale) / (dist + 1);
     ctx.beginPath();
     ctx.arc(p[0], p[1], Math.max(r, 2), 0, Math.PI * 2);
@@ -723,11 +726,12 @@ function drawSkateboard3D(ctx, W, H, q) {
     ctx.stroke();
   }
 
-  // Draw trucks (axles connecting wheels)
+  // Trucks (axles)
   const truckPairs = [[0, 1], [2, 3]];
   for (const [a, b] of truckPairs) {
     const pa = project(wheelPositions[a], m, cx, cy, scale, dist);
     const pb = project(wheelPositions[b], m, cx, cy, scale, dist);
+    if (pa[2] < 0 && pb[2] < 0) continue;
     ctx.beginPath();
     ctx.moveTo(pa[0], pa[1]);
     ctx.lineTo(pb[0], pb[1]);
