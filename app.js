@@ -387,9 +387,29 @@ function initSensors() {
   }
 
   if (typeof DeviceMotionEvent.requestPermission === "function") {
-    // iOS 13+ requires explicit permission
-    permissionBanner.classList.remove("hidden");
-    statusMsg.textContent = 'Tap "Enable Sensors" to start.';
+    // iOS 13+ – first check if permission was already granted
+    let alreadyGranted = false;
+    function probeHandler(e) {
+      const acc = e.accelerationIncludingGravity || e.acceleration || {};
+      const hasData =
+        (acc.x != null && acc.x !== 0) ||
+        (acc.y != null && acc.y !== 0) ||
+        (acc.z != null && acc.z !== 0);
+      if (hasData) {
+        alreadyGranted = true;
+        window.removeEventListener("devicemotion", probeHandler);
+        attachMotionListener();
+      }
+    }
+    window.addEventListener("devicemotion", probeHandler);
+    // Give it a moment – if no data arrives, permission is needed
+    setTimeout(() => {
+      if (!alreadyGranted) {
+        window.removeEventListener("devicemotion", probeHandler);
+        permissionBanner.classList.remove("hidden");
+        statusMsg.textContent = 'Tap "Enable Sensors" to start.';
+      }
+    }, 1000);
   } else {
     // Android / desktop browsers – attach and verify
     attachMotionListener();
