@@ -40,9 +40,10 @@ function onMotion(e) {
 
   latestAcc = { x: acc.x ?? 0, y: acc.y ?? 0, z: acc.z ?? 0 };
   latestGyr = {
-    x: ((gyr.alpha ?? 0) * Math.PI) / 180,
-    y: ((gyr.beta ?? 0) * Math.PI) / 180,
-    z: ((gyr.gamma ?? 0) * Math.PI) / 180,
+    // alpha = rotation around Z, beta = around X, gamma = around Y
+    x: ((gyr.beta ?? 0) * Math.PI) / 180,
+    y: ((gyr.gamma ?? 0) * Math.PI) / 180,
+    z: ((gyr.alpha ?? 0) * Math.PI) / 180,
   };
 
   if (state.isRecording) {

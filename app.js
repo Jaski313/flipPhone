@@ -255,9 +255,10 @@ function onMotion(e) {
   };
   latestGyr = {
     // rotationRate is deg/s – convert to rad/s
-    x: ((gyr.alpha ?? 0) * Math.PI) / 180,
-    y: ((gyr.beta ?? 0) * Math.PI) / 180,
-    z: ((gyr.gamma ?? 0) * Math.PI) / 180,
+    // alpha = rotation around Z, beta = around X, gamma = around Y
+    x: ((gyr.beta ?? 0) * Math.PI) / 180,
+    y: ((gyr.gamma ?? 0) * Math.PI) / 180,
+    z: ((gyr.alpha ?? 0) * Math.PI) / 180,
   };
 
   // Update live display
@@ -724,40 +725,44 @@ function drawSkateboard3D(ctx, W, H, q) {
     ctx.stroke();
   }
 
-  // Wheels: positioned along Y axis (length), offset on X (width) and Z (below deck)
-  const wheelPositions = [
-    [-hw - 0.02, -hl + 0.2, -hd - 0.04],
-    [ hw + 0.02, -hl + 0.2, -hd - 0.04],
-    [-hw - 0.02,  hl - 0.2, -hd - 0.04],
-    [ hw + 0.02,  hl - 0.2, -hd - 0.04],
-  ];
-  const wheelR = 0.055;
-  for (const wp of wheelPositions) {
-    const p = project(wp, m, cx, cy, scale, dist);
-    // Only draw if below deck (visible)
-    if (p[2] < 0) continue;
-    const r = (wheelR * scale) / (dist + 1);
-    ctx.beginPath();
-    ctx.arc(p[0], p[1], Math.max(r, 2), 0, Math.PI * 2);
-    ctx.fillStyle = "#f5f5dc";
-    ctx.fill();
-    ctx.strokeStyle = "#888";
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
-  }
+  // Only draw wheels/trucks when the bottom of the deck faces the camera.
+  // Bottom face normal in local space is [0, 0, -1].
+  // After rotation: nz = -m[8]. If nz < 0 the bottom faces the camera.
+  const bottomFacesCamera = -m[8] < 0;
 
-  // Trucks (axles)
-  const truckPairs = [[0, 1], [2, 3]];
-  for (const [a, b] of truckPairs) {
-    const pa = project(wheelPositions[a], m, cx, cy, scale, dist);
-    const pb = project(wheelPositions[b], m, cx, cy, scale, dist);
-    if (pa[2] < 0 && pb[2] < 0) continue;
-    ctx.beginPath();
-    ctx.moveTo(pa[0], pa[1]);
-    ctx.lineTo(pb[0], pb[1]);
-    ctx.strokeStyle = "#999";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+  if (bottomFacesCamera) {
+    // Wheels: positioned along Y axis (length), offset on X (width) and Z (below deck)
+    const wheelPositions = [
+      [-hw - 0.02, -hl + 0.2, -hd - 0.04],
+      [ hw + 0.02, -hl + 0.2, -hd - 0.04],
+      [-hw - 0.02,  hl - 0.2, -hd - 0.04],
+      [ hw + 0.02,  hl - 0.2, -hd - 0.04],
+    ];
+    const wheelR = 0.055;
+    for (const wp of wheelPositions) {
+      const p = project(wp, m, cx, cy, scale, dist);
+      const r = (wheelR * scale) / (dist + 1);
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], Math.max(r, 2), 0, Math.PI * 2);
+      ctx.fillStyle = "#f5f5dc";
+      ctx.fill();
+      ctx.strokeStyle = "#888";
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // Trucks (axles)
+    const truckPairs = [[0, 1], [2, 3]];
+    for (const [a, b] of truckPairs) {
+      const pa = project(wheelPositions[a], m, cx, cy, scale, dist);
+      const pb = project(wheelPositions[b], m, cx, cy, scale, dist);
+      ctx.beginPath();
+      ctx.moveTo(pa[0], pa[1]);
+      ctx.lineTo(pb[0], pb[1]);
+      ctx.strokeStyle = "#999";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
 }
 
