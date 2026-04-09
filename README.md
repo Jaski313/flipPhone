@@ -1,162 +1,167 @@
-# FlipPhone
+# flipPhone
 
-A mobile-first web app for gathering phone flip sensor data to train a classification model.
-
-## What is it?
-
-Phone flips are skateboarding-style tricks performed by flipping your phone in the air with your hands (Kickflip, Heelflip, Shuvit, etc.). This app records the accelerometer and gyroscope data from your phone while you perform a trick, then lets you decide whether to save or discard each recording – keeping your dataset clean.
-
-Recordings are stored on a **central server**, so you can invite friends to collect data using their own keys.
+A mobile-first web app for playing Game of Skate with your phone. Flip it like a skateboard, let the ML model judge.
 
 ---
 
-## Quick start
+## What it is
 
-### 1. Install dependencies
+flipPhone is a multiplayer Game of Skate where tricks are physical phone movements — kickflips, heelflips, shuvits — detected in real time via the device's motion sensors and classified by a machine learning model.
 
-```bash
-pip install -r requirements.txt
+Challenge a friend, set a line of tricks, make them match it. Miss it, you get a letter. First to spell S-K-A-T-E loses.
+
+Every trick performed in-game is silently saved as training data, so the model gets better the more people play.
+
+---
+
+## How it works
+
+The phone's accelerometer and gyroscope record a burst of sensor data while you flip it. That data is sent to an ML classifier running locally (or on a server) which returns a trick label and confidence score. If the confidence is above the threshold, the trick counts.
+
+```
+flip phone → sensor burst → /api/predict → { trick, confidence } → game logic
+                                         ↘ saved silently as training sample
 ```
 
-### 2. Create an admin key for yourself
+---
 
-```bash
-python server.py create-key "myname" --admin
+## Tech stack
+
+- **Frontend** — Vanilla HTML/CSS/JS, Canvas 2D, Device Motion API
+- **Backend** — Python Flask, SQLite
+- **ML Service** — runs separately on `localhost:8000`, Flask proxies to it
+- No build tools, no frameworks, no dependencies beyond Flask and the ML service
+
+---
+
+## URL structure
+
+| Route    | What it is                           |
+| -------- | ------------------------------------ |
+| `/`      | Game of Skate — login, home, play    |
+| `/lab`   | Recorder, dataset viewer, playground |
+| `/admin` | Key management, references, export   |
+
+`/lab` and `/admin` have no prominent links from the main app. They exist for contributors and admins.
+
+---
+
+## Tricks
+
+8 tricks are currently supported:
+
+`kickflip` `heelflip` `fs_shuvit` `fs_360_shuvit` `bs_shuvit` `bs_360_shuvit` `treflip` `late_kickflip`
+
+---
+
+## Project structure
+
+```
+flipphone/
+  app.py                  ← Application factory, blueprint registration
+  database.py             ← SQLite helpers, schema init
+  blueprints/
+    game_bp.py            ← Game of Skate, auth, friends (prefix: /)
+    lab_bp.py             ← Recorder, dataset, playground (prefix: /lab)
+    admin_bp.py           ← Admin tools (prefix: /admin)
+  static/
+    game/                 ← Game frontend JS/CSS
+    lab/                  ← Recorder frontend JS/CSS
+    shared/
+      sensor.js           ← Device Motion / Gyro
+      renderer.js         ← 3D Canvas renderer (Quaternion → Canvas)
+  templates/
+    game/index.html
+    lab/index.html
+    lab/playground.html
+    admin/index.html
 ```
 
-This prints your key. Keep it safe – you'll need it to access the app.
+---
 
-### 3. Create keys for friends
+## Database
 
-```bash
-python server.py create-key "alice"
-python server.py create-key "bob"
-```
+Two auth systems run in parallel — the game needs persistent user identities for friends and challenges, while the lab uses API keys for simplicity.
 
-Share the printed key and your server URL with each friend.
+**Game tables** — `game_users`, `game_sessions`, `friendships`, `games`, `game_turns`
 
-### 4. Start the server
+**Lab tables** — `api_keys`, `recordings`, `references`
 
-```bash
-python server.py runserver
-# or with a custom port:
-python server.py runserver --port 8080
-```
-
-### 5. Open the app
-
-Navigate to `http://your-server:5000` on your phone. Enter the server URL and your API key when prompted.
-
-Friends open the same URL and enter their own key.
+Recordings have a `source` column (`'game'` or `'lab'`) so admin can filter by origin. Game recordings tend to be higher quality training data — the user had a specific trick to match, so the label is reliable.
 
 ---
 
-## CLI reference
+## Auth
 
-| Command | Description |
-|---|---|
-| `python server.py create-key <name>` | Create a regular API key |
-| `python server.py create-key <name> --admin` | Create an admin key |
-| `python server.py list-keys` | List all keys (ID, name, preview) |
-| `python server.py revoke-key <id>` | Revoke a key by its numeric ID |
-| `python server.py runserver [--port N] [--debug]` | Start the web server |
+**Game (`/`)** — username + password, session token stored in `localStorage` as `fp_game_token`. Token valid 30 days.
+
+**Lab/Admin (`/lab`, `/admin`)** — API key in header: `X-API-Key: fp_...`
 
 ---
 
-## Admin UI
+## Game of Skate rules
 
-When you connect with an **admin key**, a key management panel appears in the Dataset tab:
+1. Challenger sets a line of 1–3 tricks
+2. Opponent must match the line in order
+3. Each failed match earns a letter (S → K → A → T → E)
+4. Then roles flip — the matcher becomes the setter
+5. First player to complete S-K-A-T-E loses
 
-- See all keys and their preview
-- Create a new friend key directly from the browser
-- Revoke any key
-
-Admins also see **all** recordings from all collectors in the dataset view.
-
----
-
-## Features
-
-- **Trick selector** – Choose the trick (Kickflip, Heelflip, Shuvit, 360 Shuvit, Treflip, Hardflip, Varial Kick, Varial Heel, Impossible, Custom)
-- **Live sensor display** – Real-time accelerometer (m/s²) and gyroscope (rad/s) values
-- **Tap-to-record** – Press the round button to start/stop capturing `devicemotion` data
-- **Review screen** – Duration, sample count, sample rate, acceleration-magnitude chart; **Save** or **Discard** each take
-- **Server storage** – Accepted recordings are POSTed to the server (SQLite)
-- **Dataset view** – Per-trick counts, list with collector name, delete entries
-- **Export** – Download the dataset as **JSON** or flat **CSV** for ML training
+Gameplay is async — no need to be online at the same time. The game state lives in the database, updates are delivered via polling.
 
 ---
 
-## Data format
+## Sensor data format
 
-Each recording stored on the server:
+Each sample collected during a flip:
 
 ```json
 {
-  "id": "unique-uuid",
-  "trick": "Kickflip",
-  "timestamp": "2026-03-23T22:00:00.000Z",
-  "durationMs": 1234,
-  "sampleCount": 74,
-  "sampleRateHz": 60,
-  "collector": "alice",
-  "samples": [
-    { "t": 0,   "ax": 0.12, "ay": 9.81, "az": -0.05, "gx": 0.01, "gy": -0.03, "gz": 0.02 },
-    { "t": 17,  "ax": 0.44, "ay": 8.20, "az":  1.30, "gx": 0.45, "gy":  1.10, "gz": 0.80 }
-  ]
+  "timestamp": 1234567890,
+  "ax": 0.0,
+  "ay": 9.8,
+  "az": 0.1,
+  "gx": 0.0,
+  "gy": 0.0,
+  "gz": 0.0
 }
 ```
 
-| Field | Description |
-|---|---|
-| `t` | Milliseconds from recording start |
-| `ax/ay/az` | Accelerometer including gravity (m/s²) |
-| `gx/gy/gz` | Gyroscope rotation rate (rad/s) |
-| `collector` | Name of the key that submitted this recording |
+`ax/ay/az` in m/s², `gx/gy/gz` in rad/s (mapped from `alpha/beta/gamma`). Data is stored raw and unfiltered.
 
 ---
 
-## REST API
+## Running locally
 
-All endpoints require an `X-API-Key` header (or `?api_key=` query param for downloads).
+```bash
+# Install dependencies
+pip install flask
 
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| GET | `/api/me` | any | Info about the current key |
-| POST | `/api/recordings` | any | Save a recording |
-| GET | `/api/recordings` | any | List recordings (admin sees all, user sees own) |
-| DELETE | `/api/recordings/<id>` | any | Delete a recording (admin or owner) |
-| GET | `/api/export/json` | any | Download dataset as JSON |
-| GET | `/api/export/csv` | any | Download dataset as flat CSV |
-| GET | `/api/keys` | admin | List all API keys |
-| POST | `/api/keys` | admin | Create a new key `{"name": "…"}` |
-| DELETE | `/api/keys/<id>` | admin | Revoke a key |
+# Start the app
+python app.py
 
----
+# Start the ML service separately (required for predict)
+# See /ml for setup instructions
+```
 
-## Environment variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `FLIPPHONE_DB` | `flipphone.db` | Path to the SQLite database file |
-| `PORT` | `5000` | Port to listen on (overridden by `--port`) |
+The app runs on `http://localhost:5000`. HTTPS is required on real devices for the Device Motion API — use a tunnel like ngrok or deploy to a host with TLS.
 
 ---
 
-## Files
+## iOS note
 
-| File | Description |
-|---|---|
-| `server.py` | Flask backend (SQLite, API key auth, REST endpoints) |
-| `requirements.txt` | Python dependencies (Flask) |
-| `index.html` | App markup |
-| `style.css` | Styles (dark mobile-first theme) |
-| `app.js` | All client logic: sensor capture, API calls, UI |
+iOS requires an explicit permission prompt for motion sensors. The app shows a banner on first load if permission hasn't been granted yet. This must happen on user gesture (button tap) — it cannot be triggered automatically.
 
 ---
 
-## Platform notes
+## `/lab` — contributing data
 
-- **iOS 13+**: Safari requires a permission prompt before motion sensors are available. Tap **Enable Sensors** when the banner appears.
-- **Android / desktop**: Sensors attach automatically, no permission needed.
-- **HTTPS recommended**: iOS Safari blocks `DeviceMotionEvent` on non-localhost HTTP. Use a reverse proxy (nginx, Caddy) with a TLS certificate when deploying publicly.
+`/lab` is the data collection interface. If you have an API key, you can record labeled trick samples, review them with the 3D playback animation, and submit them to the dataset. The ML model is retrained periodically from all collected data.
+
+The playground at `/lab/playground` lets you test the current model without an account — just flip and see what it thinks.
+
+---
+
+## `/admin` — administration
+
+Admin accounts can manage API keys, set reference recordings per trick (used as canonical examples), export the full dataset as JSON or CSV, and view aggregate stats across all users.
