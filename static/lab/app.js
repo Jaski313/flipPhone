@@ -24,21 +24,27 @@
 // ──────────────────────────────────────────────
 // Constants & State
 // ──────────────────────────────────────────────
-const TRICKS = [
-  "Kickflip",
-  "Heelflip",
-  "FS Shuvit",
-  "FS 360 Shuvit",
-  "BS Shuvit",
-  "BS 360 Shuvit",
-  "Treflip",
-  "Late Kickflip",
-];
+// Loaded from /game/api/tricks — single source of truth
+let TRICKS = [];
+
+async function loadTricks() {
+  try {
+    const resp = await fetch("/game/api/tricks");
+    if (resp.ok) {
+      const list = await resp.json();
+      TRICKS = list.map((t) => t.name);
+    }
+  } catch { /* fall through to fallback */ }
+  if (!TRICKS.length) {
+    TRICKS = ["Kickflip", "Heelflip", "FS Shuvit", "FS 360 Shuvit",
+              "BS Shuvit", "BS 360 Shuvit", "Treflip", "Late Kickflip"];
+  }
+}
 
 const CONFIG_KEY = "flipphone_config";
 
 const state = {
-  selectedTrick: TRICKS[0],
+  selectedTrick: null,
   isRecording: false,
   samples: [],
   recordingStart: null,
@@ -1256,6 +1262,8 @@ function updateHeaderName(name, isAdmin) {
 // Init
 // ──────────────────────────────────────────────
 async function init() {
+  await loadTricks();
+  state.selectedTrick = TRICKS[0];
   buildTrickGrid();
   initSensors();
 

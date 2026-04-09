@@ -163,10 +163,27 @@ def auth_me():
 # ──────────────────────────────────────────────
 SKATE = 'SKATE'
 
-VALID_TRICKS = {
-    'kickflip', 'heelflip', 'fs_shuvit', 'fs_360_shuvit',
-    'bs_shuvit', 'bs_360_shuvit', 'treflip', 'late_kickflip',
-}
+TRICKS = [
+    {'id': 'kickflip',       'name': 'Kickflip'},
+    {'id': 'heelflip',       'name': 'Heelflip'},
+    {'id': 'fs_shuvit',      'name': 'FS Shuvit'},
+    {'id': 'fs_360_shuvit',  'name': 'FS 360 Shuvit'},
+    {'id': 'bs_shuvit',      'name': 'BS Shuvit'},
+    {'id': 'bs_360_shuvit',  'name': 'BS 360 Shuvit'},
+    {'id': 'treflip',        'name': 'Treflip'},
+    {'id': 'late_kickflip',  'name': 'Late Kickflip'},
+]
+
+# Fast lookups: accept both id ("kickflip") and display name ("Kickflip")
+_TRICK_BY_ID   = {t['id']: t for t in TRICKS}
+_TRICK_BY_NAME = {t['name']: t for t in TRICKS}
+
+def _normalize_trick(raw):
+    """Resolve a trick string (id or display name) to its canonical id."""
+    if raw in _TRICK_BY_ID:
+        return raw
+    t = _TRICK_BY_NAME.get(raw)
+    return t['id'] if t else None
 
 
 def _user_profile(row):
@@ -222,6 +239,14 @@ def _other_player(g_row, me):
     if g_row['challenger_id'] == me:
         return g_row['opponent_id']
     return g_row['challenger_id']
+
+
+# ──────────────────────────────────────────────
+# Tricks catalogue (single source of truth)
+# ──────────────────────────────────────────────
+@game.route('/game/api/tricks')
+def list_tricks():
+    return jsonify(TRICKS)
 
 
 # ──────────────────────────────────────────────
@@ -662,9 +687,12 @@ def set_line(game_id):
     tricks = data.get('tricks')
     if not isinstance(tricks, list) or not (1 <= len(tricks) <= 3):
         return jsonify({'error': 'tricks must be a list of 1-3 items'}), 400
-    invalid = [t for t in tricks if t not in VALID_TRICKS]
+    # Normalize trick names: accept both id ("kickflip") and display name ("Kickflip")
+    normalized = [_normalize_trick(t) for t in tricks]
+    invalid = [raw for raw, norm in zip(tricks, normalized) if norm is None]
     if invalid:
         return jsonify({'error': f'Invalid tricks: {", ".join(invalid)}'}), 400
+    tricks = normalized
 
     me = g.game_user['uid']
     db = get_db()
@@ -711,6 +739,13 @@ def submit_attempt(game_id):
         return jsonify({'error': 'tricks must be a list'}), 400
     if not isinstance(success, bool):
         return jsonify({'error': 'success must be a boolean'}), 400
+
+    # Normalize trick names (accept display names from predict API)
+    normalized = [_normalize_trick(t) for t in tricks]
+    invalid = [raw for raw, norm in zip(tricks, normalized) if norm is None]
+    if invalid:
+        return jsonify({'error': f'Invalid tricks: {", ".join(invalid)}'}), 400
+    tricks = normalized
 
     me = g.game_user['uid']
     db = get_db()
