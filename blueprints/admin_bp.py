@@ -74,6 +74,43 @@ def revoke_key(key_id):
 
 
 # ──────────────────────────────────────────────
+# /admin/api/tricks
+# ──────────────────────────────────────────────
+@admin.route('/api/tricks', methods=['POST'])
+@require_api_key
+@require_admin
+def create_trick():
+    data = request.get_json(silent=True) or {}
+    trick_id = str(data.get('id', '')).strip().lower().replace(' ', '_')
+    name = str(data.get('name', '')).strip()
+    if not trick_id or not name:
+        return jsonify({'error': 'id and name are required'}), 400
+    if not all(c.isalnum() or c == '_' for c in trick_id):
+        return jsonify({'error': 'id must be alphanumeric with underscores'}), 400
+
+    db = get_db()
+    existing = db.execute('SELECT id FROM tricks WHERE id = ? OR name = ?', (trick_id, name)).fetchone()
+    if existing:
+        return jsonify({'error': 'Trick already exists'}), 409
+
+    db.execute('INSERT INTO tricks (id, name) VALUES (?, ?)', (trick_id, name))
+    db.commit()
+    return jsonify({'id': trick_id, 'name': name}), 201
+
+
+@admin.route('/api/tricks/<trick_id>', methods=['DELETE'])
+@require_api_key
+@require_admin
+def delete_trick(trick_id):
+    db = get_db()
+    result = db.execute('DELETE FROM tricks WHERE id = ?', (trick_id,))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({'error': 'Trick not found'}), 404
+    return jsonify({'status': 'deleted'})
+
+
+# ──────────────────────────────────────────────
 # /admin/api/export
 # ──────────────────────────────────────────────
 def _get_export_rows(db):

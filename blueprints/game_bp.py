@@ -163,27 +163,16 @@ def auth_me():
 # ──────────────────────────────────────────────
 SKATE = 'SKATE'
 
-TRICKS = [
-    {'id': 'kickflip',       'name': 'Kickflip'},
-    {'id': 'heelflip',       'name': 'Heelflip'},
-    {'id': 'fs_shuvit',      'name': 'FS Shuvit'},
-    {'id': 'fs_360_shuvit',  'name': 'FS 360 Shuvit'},
-    {'id': 'bs_shuvit',      'name': 'BS Shuvit'},
-    {'id': 'bs_360_shuvit',  'name': 'BS 360 Shuvit'},
-    {'id': 'treflip',        'name': 'Treflip'},
-    {'id': 'late_kickflip',  'name': 'Late Kickflip'},
-]
+def _get_tricks(db):
+    """Load tricks from DB."""
+    rows = db.execute('SELECT id, name FROM tricks ORDER BY rowid').fetchall()
+    return [{'id': r['id'], 'name': r['name']} for r in rows]
 
-# Fast lookups: accept both id ("kickflip") and display name ("Kickflip")
-_TRICK_BY_ID   = {t['id']: t for t in TRICKS}
-_TRICK_BY_NAME = {t['name']: t for t in TRICKS}
 
-def _normalize_trick(raw):
+def _normalize_trick(raw, db):
     """Resolve a trick string (id or display name) to its canonical id."""
-    if raw in _TRICK_BY_ID:
-        return raw
-    t = _TRICK_BY_NAME.get(raw)
-    return t['id'] if t else None
+    row = db.execute('SELECT id FROM tricks WHERE id = ? OR name = ?', (raw, raw)).fetchone()
+    return row['id'] if row else None
 
 
 def _user_profile(row):
@@ -246,7 +235,8 @@ def _other_player(g_row, me):
 # ──────────────────────────────────────────────
 @game.route('/game/api/tricks')
 def list_tricks():
-    return jsonify(TRICKS)
+    db = get_db()
+    return jsonify(_get_tricks(db))
 
 
 # ──────────────────────────────────────────────
@@ -667,15 +657,17 @@ def set_line(game_id):
     tricks = data.get('tricks')
     if not isinstance(tricks, list) or not (1 <= len(tricks) <= 3):
         return jsonify({'error': 'tricks must be a list of 1-3 items'}), 400
+
+    me = g.game_user['uid']
+    db = get_db()
+
     # Normalize trick names: accept both id ("kickflip") and display name ("Kickflip")
-    normalized = [_normalize_trick(t) for t in tricks]
+    normalized = [_normalize_trick(t, db) for t in tricks]
     invalid = [raw for raw, norm in zip(tricks, normalized) if norm is None]
     if invalid:
         return jsonify({'error': f'Invalid tricks: {", ".join(invalid)}'}), 400
     tricks = normalized
 
-    me = g.game_user['uid']
-    db = get_db()
     row = db.execute('SELECT * FROM games WHERE id = ?', (game_id,)).fetchone()
     if not row:
         return jsonify({'error': 'Game not found'}), 404
@@ -720,15 +712,16 @@ def submit_attempt(game_id):
     if not isinstance(success, bool):
         return jsonify({'error': 'success must be a boolean'}), 400
 
+    me = g.game_user['uid']
+    db = get_db()
+
     # Normalize trick names (accept display names from predict API)
-    normalized = [_normalize_trick(t) for t in tricks]
+    normalized = [_normalize_trick(t, db) for t in tricks]
     invalid = [raw for raw, norm in zip(tricks, normalized) if norm is None]
     if invalid:
         return jsonify({'error': f'Invalid tricks: {", ".join(invalid)}'}), 400
     tricks = normalized
 
-    me = g.game_user['uid']
-    db = get_db()
     row = db.execute('SELECT * FROM games WHERE id = ?', (game_id,)).fetchone()
     if not row:
         return jsonify({'error': 'Game not found'}), 404

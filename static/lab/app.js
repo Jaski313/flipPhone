@@ -1076,13 +1076,94 @@ async function renderAdminPanel() {
     )
     .join("");
 
+  // Build tricks section
+  let tricksHtml = "";
+  try {
+    const tricksResp = await fetch(getConfig().serverUrl + "/game/api/tricks");
+    if (tricksResp.ok) {
+      const tricks = await tricksResp.json();
+      tricksHtml = tricks.map((t) => `
+        <div class="key-item">
+          <div class="key-info">
+            <span class="key-name">${escapeHtml(t.name)}</span>
+            <span class="key-preview">${escapeHtml(t.id)}</span>
+          </div>
+          <button class="item-delete trick-delete" data-id="${escapeHtml(t.id)}" aria-label="Delete trick">🗑</button>
+        </div>`).join("");
+    }
+  } catch (_) { /* ignore */ }
+
   panel.innerHTML = `
+    <div class="card-title">Tricks</div>
+    <div id="trick-list">${tricksHtml}</div>
+    <div class="create-key-row">
+      <input id="new-trick-name" type="text" placeholder="Trick name (e.g. Varial Flip)" class="key-name-input" />
+      <button id="create-trick-btn" class="icon-btn">+ Add trick</button>
+    </div>
+    <div style="height:16px"></div>
     <div class="card-title">API Keys</div>
     <div id="key-list">${rowsHtml}</div>
     <div class="create-key-row">
       <input id="new-key-name" type="text" placeholder="Friend's name…" class="key-name-input" />
       <button id="create-key-btn" class="icon-btn">+ Add key</button>
     </div>`;
+
+  // Trick delete
+  panel.querySelectorAll(".trick-delete").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const id = e.currentTarget.dataset.id;
+      if (!confirm(`Delete trick "${id}"?`)) return;
+      try {
+        const cfg = getConfig();
+        const resp = await fetch(cfg.serverUrl + `/admin/api/tricks/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: { "X-API-Key": cfg.apiKey },
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || "Failed");
+        }
+        showToast("Trick deleted.");
+        await loadTricks();
+        buildTrickGrid();
+        renderAdminPanel();
+      } catch (err) {
+        showToast("Delete failed: " + err.message);
+      }
+    });
+  });
+
+  // Trick create
+  $("create-trick-btn").addEventListener("click", async () => {
+    const name = ($("new-trick-name").value || "").trim();
+    if (!name) {
+      showToast("Enter a trick name first.");
+      return;
+    }
+    const id = name.toLowerCase().replace(/\s+/g, "_");
+    try {
+      const cfg = getConfig();
+      const resp = await fetch(cfg.serverUrl + "/admin/api/tricks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": cfg.apiKey,
+        },
+        body: JSON.stringify({ id, name }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      showToast(`Trick "${name}" added!`);
+      $("new-trick-name").value = "";
+      await loadTricks();
+      buildTrickGrid();
+      renderAdminPanel();
+    } catch (err) {
+      showToast("Create failed: " + err.message);
+    }
+  });
 
   panel.querySelectorAll(".key-revoke").forEach((btn) => {
     btn.addEventListener("click", async (e) => {

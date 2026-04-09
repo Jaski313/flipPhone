@@ -105,6 +105,12 @@ def init_db():
             created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
         );
 
+        CREATE TABLE IF NOT EXISTS tricks (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+
         CREATE TABLE IF NOT EXISTS game_sessions (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id    INTEGER NOT NULL REFERENCES game_users(id) ON DELETE CASCADE,
@@ -118,6 +124,24 @@ def init_db():
         conn.execute("ALTER TABLE recordings ADD COLUMN source TEXT NOT NULL DEFAULT 'lab'")
     except sqlite3.OperationalError:
         pass  # column already exists
+
+    # Seed default tricks if table is empty
+    if conn.execute('SELECT COUNT(*) FROM tricks').fetchone()[0] == 0:
+        default_tricks = [
+            ('kickflip',      'Kickflip'),
+            ('heelflip',      'Heelflip'),
+            ('fs_shuvit',     'FS Shuvit'),
+            ('fs_360_shuvit', 'FS 360 Shuvit'),
+            ('bs_shuvit',     'BS Shuvit'),
+            ('bs_360_shuvit', 'BS 360 Shuvit'),
+            ('treflip',       'Treflip'),
+            ('late_kickflip', 'Late Kickflip'),
+        ]
+        conn.executemany(
+            'INSERT OR IGNORE INTO tricks (id, name) VALUES (?, ?)',
+            default_tricks,
+        )
+
     conn.commit()
     conn.close()
 
