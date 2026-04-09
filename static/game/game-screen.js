@@ -438,8 +438,12 @@ async function _gsMatcherToggleRecord() {
     try {
       const result = await _gsRecorder.stopAndPredict();
       const required = line[_gsMatchIndex];
+      // Normalize both sides: predict API may return display name ("Kickflip"),
+      // DB stores id ("kickflip"). normalizeTrick resolves both to id.
+      const detectedId = normalizeTrick(result.trick);
+      const requiredId = normalizeTrick(required);
       const matched =
-        result.trick === required &&
+        detectedId === requiredId &&
         result.confidence >= _gsRecorder.confidenceThreshold;
 
       if (matched) {
