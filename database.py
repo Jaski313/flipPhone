@@ -58,6 +58,60 @@ def init_db():
             recording_id    TEXT    NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
             set_at          TEXT    NOT NULL
         );
+
+        -- Game of Skate tables
+        CREATE TABLE IF NOT EXISTS game_users (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            username      TEXT    UNIQUE NOT NULL,
+            password_hash TEXT    NOT NULL,
+            display_name  TEXT,
+            created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+            tricks_landed INTEGER NOT NULL DEFAULT 0,
+            games_won     INTEGER NOT NULL DEFAULT 0,
+            games_lost    INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS friendships (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            requester_id INTEGER NOT NULL REFERENCES game_users(id) ON DELETE CASCADE,
+            addressee_id INTEGER NOT NULL REFERENCES game_users(id) ON DELETE CASCADE,
+            status       TEXT    NOT NULL DEFAULT 'pending',
+            created_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+            UNIQUE(requester_id, addressee_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS games (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            challenger_id     INTEGER NOT NULL REFERENCES game_users(id) ON DELETE CASCADE,
+            opponent_id       INTEGER NOT NULL REFERENCES game_users(id) ON DELETE CASCADE,
+            status            TEXT    NOT NULL DEFAULT 'invited',
+            current_turn_id   INTEGER REFERENCES game_users(id),
+            current_role      TEXT    NOT NULL DEFAULT 'setter',
+            current_line      TEXT,
+            challenger_letters TEXT   NOT NULL DEFAULT '',
+            opponent_letters   TEXT   NOT NULL DEFAULT '',
+            winner_id         INTEGER REFERENCES game_users(id),
+            created_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+            updated_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS game_turns (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id          INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            player_id        INTEGER NOT NULL REFERENCES game_users(id) ON DELETE CASCADE,
+            role             TEXT    NOT NULL,
+            tricks_attempted TEXT,
+            result           TEXT,
+            created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS game_sessions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES game_users(id) ON DELETE CASCADE,
+            token      TEXT    UNIQUE NOT NULL,
+            expires_at TEXT    NOT NULL,
+            created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
     ''')
     # Migration: add source column to existing databases
     try:

@@ -15,18 +15,1261 @@
     <meta name="theme-color" content="#0d0d0d" />
     <title>Game of Skate</title>
     <link rel="stylesheet" href="/static/shared/style.css" />
+    <style>
+      /* ── Auth Screen ── */
+      #auth-screen {
+        display: flex;
+        flex-direction: column;
+        min-height: 100dvh;
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      #auth-screen.hidden { display: none; }
+
+      .auth-logo {
+        text-align: center;
+        padding: 48px 0 32px;
+      }
+      .auth-logo h1 {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: var(--accent);
+        letter-spacing: -0.5px;
+      }
+      .auth-logo p {
+        color: var(--text-dim);
+        font-size: 0.88rem;
+        margin-top: 4px;
+      }
+
+      .auth-tabs {
+        display: flex;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+      .auth-tab-btn {
+        flex: 1;
+        padding: 12px 8px;
+        background: none;
+        border: none;
+        color: var(--text-dim);
+        font-size: 0.92rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: color var(--transition), background var(--transition);
+      }
+      .auth-tab-btn.active {
+        color: var(--accent);
+        background: var(--surface2);
+      }
+
+      .auth-form {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .auth-form.hidden { display: none; }
+
+      .auth-field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .auth-field label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-dim);
+      }
+      .auth-field input {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        font-size: 0.95rem;
+        padding: 12px 14px;
+        outline: none;
+        transition: border-color var(--transition);
+        width: 100%;
+      }
+      .auth-field input:focus {
+        border-color: var(--accent);
+      }
+
+      .field-hint {
+        font-size: 0.75rem;
+        min-height: 1em;
+      }
+      .hint-ok { color: var(--success); }
+      .hint-error { color: var(--danger); }
+
+      .auth-error {
+        font-size: 0.82rem;
+        color: var(--danger);
+        min-height: 1.2em;
+      }
+
+      .auth-submit-btn {
+        padding: 14px;
+        border-radius: 10px;
+        border: none;
+        background: var(--accent);
+        color: #000;
+        font-size: 1rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: opacity var(--transition);
+        margin-top: 4px;
+      }
+      .auth-submit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* ── App Shell ── */
+      #app-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100dvh;
+        max-width: 480px;
+        margin: 0 auto;
+      }
+      #app-shell.hidden { display: none; }
+
+      /* ── Top Header ── */
+      .app-header {
+        padding: 14px 20px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+        z-index: 50;
+      }
+      .app-wordmark {
+        font-size: 1.2rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: var(--accent);
+        flex: 1;
+      }
+      .header-user-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 4px 12px 4px 4px;
+        cursor: pointer;
+        transition: border-color var(--transition);
+      }
+      .header-user-btn:hover { border-color: var(--accent); }
+      .header-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--surface2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: var(--accent);
+      }
+      .header-username {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text);
+        max-width: 90px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* ── Profile Overlay ── */
+      #profile-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.85);
+        z-index: 200;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+      }
+      #profile-overlay.hidden { display: none; }
+      .profile-sheet {
+        background: var(--surface);
+        border-radius: var(--radius) var(--radius) 0 0;
+        width: 100%;
+        max-width: 480px;
+        padding: 28px 24px 36px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+      .profile-avatar-lg {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--surface2);
+        border: 3px solid var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: var(--accent);
+      }
+      .profile-name {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .profile-handle {
+        font-size: 0.82rem;
+        color: var(--text-dim);
+        margin-top: -10px;
+      }
+      .profile-stats {
+        display: flex;
+        gap: 16px;
+      }
+      .profile-stat {
+        text-align: center;
+      }
+      .profile-stat-val {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: var(--accent);
+      }
+      .profile-stat-lbl {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-dim);
+      }
+      .profile-logout-btn {
+        width: 100%;
+        padding: 14px;
+        border-radius: 10px;
+        border: 1px solid var(--danger);
+        background: none;
+        color: var(--danger);
+        font-size: 0.92rem;
+        font-weight: 700;
+        cursor: pointer;
+        margin-top: 4px;
+      }
+      .profile-close-btn {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        background: none;
+        border: none;
+        color: var(--text-dim);
+        font-size: 1.4rem;
+        cursor: pointer;
+      }
+
+      /* ── Tab Content Area ── */
+      .app-tab-content {
+        display: none;
+        flex: 1;
+        flex-direction: column;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .app-tab-content.active { display: flex; }
+
+      /* ── Bottom Nav ── */
+      .bottom-nav {
+        display: flex;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0);
+      }
+      .nav-btn {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 10px 4px 8px;
+        background: none;
+        border: none;
+        color: var(--text-dim);
+        font-size: 0.68rem;
+        font-weight: 700;
+        cursor: pointer;
+        position: relative;
+        transition: color var(--transition);
+      }
+      .nav-btn.active { color: var(--accent); }
+      .nav-icon {
+        font-size: 1.25rem;
+        line-height: 1;
+      }
+      .nav-badge {
+        position: absolute;
+        top: 4px;
+        left: calc(50% + 4px);
+        background: var(--danger);
+        color: #fff;
+        font-size: 0.58rem;
+        font-weight: 800;
+        min-width: 16px;
+        height: 16px;
+        line-height: 16px;
+        border-radius: 8px;
+        text-align: center;
+        padding: 0 4px;
+      }
+      .nav-badge.hidden { display: none; }
+
+      /* ── Home Tab ── */
+      .home-section {
+        padding: 16px 20px 8px;
+      }
+      .home-section-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-dim);
+        margin-bottom: 10px;
+      }
+
+      /* Game card */
+      .home-game-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .home-game-top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .home-game-info { flex: 1; min-width: 0; }
+      .home-game-opponent {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .home-game-role {
+        font-size: 0.78rem;
+        color: var(--text-dim);
+        font-weight: 600;
+      }
+      .home-game-role.role-active {
+        color: var(--accent);
+      }
+      .home-game-line {
+        font-size: 0.72rem;
+        color: var(--text-dim);
+        margin-top: 2px;
+      }
+
+      /* SKATE letters */
+      .home-game-stands {
+        display: flex;
+        gap: 16px;
+      }
+      .skate-letters {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+      .skate-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: var(--text-dim);
+        margin-right: 2px;
+      }
+      .skate-char {
+        width: 22px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: var(--border);
+        background: var(--surface2);
+        border-radius: 4px;
+        transition: color var(--transition), background var(--transition);
+      }
+      .skate-char.skate-active {
+        color: var(--danger);
+        background: color-mix(in srgb, var(--danger) 15%, var(--surface2));
+      }
+
+      .home-game-btn {
+        padding: 12px;
+        border-radius: 10px;
+        border: none;
+        font-size: 0.92rem;
+        font-weight: 800;
+        cursor: pointer;
+        text-align: center;
+        width: 100%;
+      }
+
+      /* Invitation card */
+      .home-invite-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .home-invite-card.fade-out {
+        opacity: 0;
+        transform: translateX(40px);
+      }
+      .home-invite-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .home-invite-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .home-invite-actions .friend-action-btn {
+        flex: 1;
+        padding: 10px;
+        text-align: center;
+      }
+
+      /* Friend scroller */
+      .home-friend-scroller {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 8px;
+        scrollbar-width: none;
+      }
+      .home-friend-scroller::-webkit-scrollbar { display: none; }
+      .home-friend-item {
+        flex-shrink: 0;
+        width: 96px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .home-friend-name {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--text);
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+      .home-challenge-btn {
+        padding: 5px 12px;
+        border-radius: 8px;
+        border: none;
+        font-size: 0.7rem;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      /* Avatar sizes */
+      .avatar-circle.avatar-md {
+        width: 40px;
+        height: 40px;
+        font-size: 0.78rem;
+      }
+      .avatar-circle.avatar-lg {
+        width: 52px;
+        height: 52px;
+        font-size: 0.92rem;
+      }
+
+      /* Empty state */
+      .home-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        gap: 8px;
+      }
+      .home-empty-icon { font-size: 2.5rem; }
+      .home-empty-text {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .home-empty-hint {
+        font-size: 0.85rem;
+        color: var(--text-dim);
+        text-align: center;
+      }
+
+      /* ── Game Screen Overlay ── */
+      #game-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 300;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        max-width: 480px;
+        margin: 0 auto;
+      }
+      #game-screen.hidden { display: none; }
+      #gs-content {
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        display: flex;
+        flex-direction: column;
+        padding: 16px 20px env(safe-area-inset-bottom, 16px);
+        gap: 16px;
+      }
+      .gs-loading {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-dim);
+        font-size: 0.95rem;
+      }
+      .gs-back-btn {
+        background: none;
+        border: none;
+        color: var(--text-dim);
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0;
+        align-self: flex-start;
+      }
+
+      /* SKATE bar (game screen) */
+      .gs-skate-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 12px 0;
+      }
+      .gs-skate-side {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .gs-skate-name {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .gs-skate-name.gs-skate-me { color: var(--accent); }
+      .gs-vs {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: var(--border);
+        text-transform: uppercase;
+      }
+      .gs-skate-letters {
+        display: flex;
+        gap: 3px;
+      }
+      .gs-skate-ch {
+        width: 26px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: var(--border);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+      }
+      .gs-skate-ch.gs-ch-active {
+        color: var(--danger);
+        background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+        border-color: var(--danger);
+      }
+      .gs-skate-ch.gs-ch-stamp {
+        animation: gsStamp 0.4s ease-out;
+      }
+      @keyframes gsStamp {
+        0% { transform: scale(2); opacity: 0; }
+        60% { transform: scale(0.9); }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
+      .gs-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--surface2);
+        border: 2px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 800;
+        color: var(--accent);
+        flex-shrink: 0;
+      }
+
+      /* Titles */
+      .gs-title {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: var(--text);
+        text-align: center;
+      }
+      .gs-subtitle {
+        font-size: 0.82rem;
+        color: var(--text-dim);
+        text-align: center;
+        margin-top: -8px;
+      }
+
+      /* Trick pills */
+      .gs-pill-area, .gs-line-display {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        min-height: 36px;
+      }
+      .gs-trick-pill {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        border: 2px solid var(--border);
+        background: var(--surface);
+        color: var(--text-dim);
+        transition: all 0.2s ease;
+      }
+      .gs-pill-current {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+        animation: gsPillPulse 1.5s ease-in-out infinite;
+      }
+      @keyframes gsPillPulse {
+        0%, 100% { box-shadow: 0 0 0 0 transparent; }
+        50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 20%, transparent); }
+      }
+      .gs-pill-done {
+        border-color: var(--success);
+        color: var(--success);
+        background: color-mix(in srgb, var(--success) 10%, var(--surface));
+      }
+      .gs-pill-failed {
+        border-color: var(--danger);
+        color: var(--danger);
+        background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+      }
+      .gs-pill-check { color: var(--success); margin-right: 4px; }
+      .gs-pill-x { color: var(--danger); margin-right: 4px; }
+
+      .gs-counter {
+        text-align: center;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-dim);
+      }
+
+      /* Sensor permission */
+      .gs-perm-banner {
+        background: color-mix(in srgb, #ff9800 15%, var(--surface));
+        border: 1px solid #ff9800;
+        border-radius: var(--radius);
+        padding: 12px 16px;
+        font-size: 0.85rem;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .gs-perm-btn {
+        margin-left: auto;
+        padding: 6px 14px;
+        background: #ff9800;
+        color: #000;
+        border: none;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.78rem;
+        cursor: pointer;
+      }
+
+      .gs-status {
+        text-align: center;
+        font-size: 0.85rem;
+        color: var(--text-dim);
+        min-height: 1.2em;
+      }
+
+      /* Actions */
+      .gs-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: auto;
+        padding-top: 12px;
+      }
+      .gs-record-btn {
+        width: 100%;
+        padding: 16px;
+        border-radius: 12px;
+        border: 3px solid var(--accent);
+        background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+        color: var(--accent);
+        font-size: 1rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .gs-record-btn:active { transform: scale(0.97); }
+      .gs-record-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .gs-btn-recording {
+        border-color: var(--danger);
+        color: var(--danger);
+        background: color-mix(in srgb, var(--danger) 8%, var(--bg));
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .gs-submit-btn {
+        width: 100%;
+        padding: 16px;
+        border-radius: 12px;
+        border: none;
+        font-size: 1rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .gs-submit-btn:disabled { opacity: 0.5; }
+
+      /* Result overlay */
+      .gs-result-wrap {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        text-align: center;
+        padding: 20px 0;
+      }
+      .gs-result-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: 800;
+      }
+      .gs-result-icon.gs-result-success {
+        background: color-mix(in srgb, var(--success) 15%, var(--surface));
+        color: var(--success);
+        border: 3px solid var(--success);
+      }
+      .gs-result-icon.gs-result-fail {
+        background: color-mix(in srgb, var(--danger) 15%, var(--surface));
+        color: var(--danger);
+        border: 3px solid var(--danger);
+      }
+      .gs-result-title {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .gs-result-text {
+        font-size: 0.92rem;
+        color: var(--text-dim);
+      }
+      .gs-result-letter {
+        font-size: 2.4rem;
+        font-weight: 900;
+        color: var(--danger);
+        animation: gsStamp 0.5s ease-out;
+      }
+      .gs-result-stand {
+        display: flex;
+        gap: 4px;
+        margin: 8px 0;
+      }
+      .gs-result-gameover {
+        font-size: 1.1rem;
+        font-weight: 800;
+        margin-top: 8px;
+      }
+      .gs-result-gameover.gs-result-success { color: var(--success); }
+      .gs-result-gameover.gs-result-fail { color: var(--danger); }
+      .gs-ok-btn {
+        width: 100%;
+        max-width: 280px;
+        padding: 16px;
+        border-radius: 12px;
+        border: none;
+        font-size: 1rem;
+        font-weight: 800;
+        cursor: pointer;
+        margin-top: 12px;
+      }
+
+      /* Waiting screen */
+      .gs-waiting-wrap {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        text-align: center;
+      }
+      .gs-waiting-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: var(--surface2);
+        border: 3px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--accent);
+      }
+      .gs-waiting-text {
+        font-size: 0.95rem;
+        color: var(--text-dim);
+      }
+      .gs-waiting-pulse {
+        display: flex;
+        gap: 8px;
+      }
+      .gs-pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: gsDotPulse 1.2s ease-in-out infinite;
+      }
+      @keyframes gsDotPulse {
+        0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+        40% { opacity: 1; transform: scale(1.2); }
+      }
+
+      /* ── Friends Tab ── */
+      .friends-section {
+        padding: 16px 20px;
+      }
+      .friends-section-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-dim);
+        margin-bottom: 10px;
+      }
+
+      #friend-search-input {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        font-size: 0.92rem;
+        padding: 11px 14px;
+        outline: none;
+        transition: border-color var(--transition);
+        margin-bottom: 10px;
+      }
+      #friend-search-input:focus { border-color: var(--accent); }
+
+      .friend-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .friend-row:last-child { border-bottom: none; }
+      .friend-row.fade-out {
+        opacity: 0;
+        transform: translateX(40px);
+      }
+
+      .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--surface2);
+        border: 2px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 800;
+        color: var(--accent);
+        flex-shrink: 0;
+      }
+
+      .friend-info { flex: 1; min-width: 0; }
+      .friend-name {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .friend-meta {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .request-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .friend-action-btn {
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: none;
+        font-size: 0.78rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity var(--transition);
+        white-space: nowrap;
+      }
+      .friend-action-btn.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .accent-btn {
+        background: var(--accent);
+        color: #000;
+      }
+      .accept-btn {
+        background: var(--success);
+        color: #fff;
+      }
+      .decline-btn {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+      }
+
+      .friends-empty {
+        text-align: center;
+        color: var(--text-dim);
+        font-size: 0.88rem;
+        padding: 24px 0;
+      }
+
+      .friends-divider {
+        height: 1px;
+        background: var(--border);
+      }
+
+      @media (min-width: 480px) {
+        #auth-screen, #app-shell {
+          border-left: 1px solid var(--border);
+          border-right: 1px solid var(--border);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app">
-      <header>
+
+    <!-- ════════ AUTH SCREEN ════════ -->
+    <div id="auth-screen" class="hidden">
+      <div class="auth-logo">
         <h1>Game of Skate</h1>
-        <a class="tab-btn" href="/lab/">Lab</a>
-      </header>
-      <section class="view active" style="display: flex">
-        <div class="card" style="text-align: center; padding: 3rem 1rem">
-          <h2>Coming soon</h2>
+        <p>Flip your phone. Land tricks. Challenge friends.</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" data-tab="login">Login</button>
+        <button class="auth-tab-btn" data-tab="register">Register</button>
+      </div>
+
+      <!-- Login -->
+      <form id="login-form" class="auth-form" autocomplete="on">
+        <div class="auth-field">
+          <label for="login-username">Username</label>
+          <input id="login-username" type="text" autocomplete="username" required />
         </div>
-      </section>
+        <div class="auth-field">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="auth-error"></div>
+        <button id="login-btn" class="auth-submit-btn" type="submit">Login</button>
+      </form>
+
+      <!-- Register -->
+      <form id="register-form" class="auth-form hidden" autocomplete="on">
+        <div class="auth-field">
+          <label for="reg-username">Username</label>
+          <input id="reg-username" type="text" autocomplete="username" placeholder="a-z, 0-9, _ (3-20)" required />
+          <span id="reg-username-hint" class="field-hint"></span>
+        </div>
+        <div class="auth-field">
+          <label for="reg-display-name">Display Name <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input id="reg-display-name" type="text" autocomplete="name" />
+        </div>
+        <div class="auth-field">
+          <label for="reg-password">Password</label>
+          <input id="reg-password" type="password" autocomplete="new-password" placeholder="min. 8 characters" required />
+        </div>
+        <div class="auth-field">
+          <label for="reg-confirm">Confirm Password</label>
+          <input id="reg-confirm" type="password" autocomplete="new-password" required />
+        </div>
+        <div class="auth-error"></div>
+        <button id="register-btn" class="auth-submit-btn" type="submit">Create Account</button>
+      </form>
     </div>
+
+    <!-- ════════ APP SHELL ════════ -->
+    <div id="app-shell" class="hidden">
+
+      <!-- Top Header -->
+      <div class="app-header">
+        <div class="app-wordmark">flipPhone</div>
+        <button id="header-user-btn" class="header-user-btn">
+          <div id="header-avatar" class="header-avatar"></div>
+          <span id="header-username" class="header-username"></span>
+        </button>
+      </div>
+
+      <!-- Home Tab -->
+      <div id="tab-home" class="app-tab-content active">
+        <div id="home-content"></div>
+      </div>
+
+      <!-- Games Tab (placeholder for Phase 3) -->
+      <div id="tab-games" class="app-tab-content">
+        <div id="games-content" style="padding:20px;color:var(--text-dim);text-align:center;padding-top:60px;">
+          Spiele-Liste kommt hier hin
+        </div>
+      </div>
+
+      <!-- Friends Tab -->
+      <div id="tab-friends" class="app-tab-content">
+        <div class="friends-section">
+          <div class="friends-section-title">Nutzer suchen</div>
+          <input id="friend-search-input" type="text" placeholder="Username oder Name..." />
+          <div id="search-results"></div>
+        </div>
+        <div class="friends-divider"></div>
+        <div class="friends-section">
+          <div class="friends-section-title">Offene Anfragen</div>
+          <div id="requests-list"></div>
+        </div>
+        <div class="friends-divider"></div>
+        <div class="friends-section">
+          <div class="friends-section-title">Freunde</div>
+          <div id="friends-list"></div>
+        </div>
+      </div>
+
+      <!-- Bottom Navigation -->
+      <nav class="bottom-nav">
+        <button class="nav-btn active" data-nav="home">
+          <span class="nav-icon">&#9750;</span>
+          Home
+        </button>
+        <button class="nav-btn" data-nav="games">
+          <span class="nav-icon">&#9889;</span>
+          Spiele
+          <span id="games-badge" class="nav-badge hidden"></span>
+        </button>
+        <button class="nav-btn" data-nav="friends">
+          <span class="nav-icon">&#9734;</span>
+          Freunde
+          <span id="requests-badge" class="nav-badge hidden"></span>
+        </button>
+      </nav>
+
+    </div>
+
+    <!-- ════════ GAME SCREEN (fullscreen overlay) ════════ -->
+    <div id="game-screen" class="hidden">
+      <div id="gs-content"></div>
+    </div>
+
+    <!-- ════════ PROFILE OVERLAY ════════ -->
+    <div id="profile-overlay" class="hidden">
+      <div class="profile-sheet">
+        <button id="profile-close-btn" class="profile-close-btn">&times;</button>
+        <div id="profile-avatar" class="profile-avatar-lg"></div>
+        <div id="profile-display-name" class="profile-name"></div>
+        <div id="profile-handle" class="profile-handle"></div>
+        <div class="profile-stats">
+          <div class="profile-stat">
+            <div id="profile-tricks" class="profile-stat-val">0</div>
+            <div class="profile-stat-lbl">Tricks</div>
+          </div>
+          <div class="profile-stat">
+            <div id="profile-wins" class="profile-stat-val">0</div>
+            <div class="profile-stat-lbl">Wins</div>
+          </div>
+          <div class="profile-stat">
+            <div id="profile-losses" class="profile-stat-val">0</div>
+            <div class="profile-stat-lbl">Losses</div>
+          </div>
+        </div>
+        <button id="profile-logout-btn" class="profile-logout-btn">Logout</button>
+      </div>
+    </div>
+
+    <script src="/static/shared/sensor.js"></script>
+    <script src="/static/game/auth.js"></script>
+    <script src="/static/game/friends.js"></script>
+    <script src="/static/game/home.js"></script>
+    <script src="/static/game/game-recorder.js"></script>
+    <script src="/static/game/game-screen.js"></script>
+    <script src="/static/game/notifications.js"></script>
+    <script src="/static/game/poller.js"></script>
+    <script>
+      // ── Navigate to game screen ──
+      function navigateToGame(gameId) {
+        openGame(gameId);
+      }
+
+      let gamePoller = null;
+
+      // ── Bottom nav switching ──
+      function switchNav(tab) {
+        document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".app-tab-content").forEach((c) => c.classList.remove("active"));
+        const btn = document.querySelector(`.nav-btn[data-nav="${tab}"]`);
+        if (btn) btn.classList.add("active");
+        const panel = document.getElementById("tab-" + tab);
+        if (panel) panel.classList.add("active");
+
+        if (tab === "home") loadHomeTab();
+        if (tab === "friends") initFriends();
+      }
+
+      document.querySelectorAll(".nav-btn").forEach((btn) => {
+        btn.addEventListener("click", () => switchNav(btn.dataset.nav));
+      });
+
+      // ── Profile overlay ──
+      document.getElementById("header-user-btn").addEventListener("click", () => {
+        const user = getCachedUser();
+        if (!user) return;
+        const name = user.display_name || user.username;
+        document.getElementById("profile-avatar").textContent = name.slice(0, 2).toUpperCase();
+        document.getElementById("profile-display-name").textContent = name;
+        document.getElementById("profile-handle").textContent = "@" + user.username;
+        document.getElementById("profile-tricks").textContent = user.tricks_landed || 0;
+        document.getElementById("profile-wins").textContent = user.games_won || 0;
+        document.getElementById("profile-losses").textContent = user.games_lost || 0;
+        document.getElementById("profile-overlay").classList.remove("hidden");
+      });
+
+      document.getElementById("profile-close-btn").addEventListener("click", () => {
+        document.getElementById("profile-overlay").classList.add("hidden");
+      });
+
+      document.getElementById("profile-overlay").addEventListener("click", (e) => {
+        if (e.target.id === "profile-overlay") {
+          document.getElementById("profile-overlay").classList.add("hidden");
+        }
+      });
+
+      // ── Logout (from profile sheet) ──
+      document.getElementById("profile-logout-btn").addEventListener("click", async () => {
+        document.getElementById("profile-overlay").classList.add("hidden");
+        if (gamePoller) gamePoller.stop();
+        destroyFriends();
+        await logout();
+        showAuth();
+      });
+
+      // ── Hook into loadApp ──
+      const _origLoadApp = loadApp;
+      loadApp = function () {
+        _origLoadApp();
+
+        // Populate header
+        const user = getCachedUser();
+        if (user) {
+          const name = user.display_name || user.username;
+          document.getElementById("header-avatar").textContent = name.slice(0, 2).toUpperCase();
+          document.getElementById("header-username").textContent = name;
+        }
+
+        const myId = user ? user.id : null;
+
+        // Start poller
+        if (gamePoller) gamePoller.stop();
+        gamePoller = new GamePoller((data) => {
+          // Update badges
+          const reqBadge = document.getElementById("requests-badge");
+          if (reqBadge) {
+            reqBadge.textContent = data.friend_requests_count || "";
+            reqBadge.classList.toggle("hidden", !data.friend_requests_count);
+          }
+          const gamesBadge = document.getElementById("games-badge");
+          if (gamesBadge) {
+            gamesBadge.textContent = data.my_turn_count || "";
+            gamesBadge.classList.toggle("hidden", !data.my_turn_count);
+          }
+
+          // Update home tab
+          updateHome(data);
+        }, myId);
+        gamePoller.start();
+
+        // Load home tab initially
+        loadHomeTab();
+      };
+    </script>
   </body>
 </html>
